@@ -1,0 +1,5 @@
+# $Id$
+
+include $(SRCDIR)/config/aros.cfg
+
+# Placeholder ...

@@ -12,8 +12,7 @@ USER_CPPFLAGS := \
 USER_LDFLAGS := -static
 
 #USER_INCLUDES := -I $(SRCDIR)/rom/exec
-USER_INCLUDES := $(PRIV_KERNEL_INCLUDES) -I$(SRCDIR)/arch/all-native/kernel \
-		 -isystem $(SRCDIR)/arch/all-native/bootconsole/include
+USER_INCLUDES := $(PRIV_KERNEL_INCLUDES) -I$(SRCDIR)/arch/all-native/kernel
 
 HVDEBUG_FILES :=            \
 	    hyperv-debug    \
