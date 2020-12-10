@@ -10,8 +10,43 @@ include $(SRCDIR)/config/aros.cfg
 #MM- grub2-pc-x86_64: arch-common-grub2 grub2-iso-setup 
 
 MODULES_DEFAULT:=$(SRCDIR)/$(CURDIR)/../modules.default
+MODULES_EXTRA:=$(SRCDIR)/$(CURDIR)/../modules.extra
 MODULE_BOOTSTRAP:=/$(AROS_DIR_ARCH)/bootstrap.gz
 
+#
+## optional modules...
+#
+SEDEXTRAPARAMS=
+
+# ROM HyperV support
+#if
+MODULEEXTRA_HYPERV:=/boot/pc/aros-hyperv.pkg.gz
+SEDPARAMSHYPERV = -e 's\#@module.hyperv@\#    $(MODULE_CMD) $(MODULEEXTRA_HYPERV)\#g'
+#else
+#SEDPARAMSHYPERV = -e '/@module.hyperv@d'
+#endif
+SEDEXTRAPARAMS += $(SEDPARAMSHYPERV)
+
+
+# ROM USB support
+#if
+MODULEEXTRA_USB:=/boot/poseidon.pkg.gz
+SEDPARAMSUSB = -e 's\#@module.usb@\#    $(MODULE_CMD) $(MODULEEXTRA_USB)\#g'
+#else
+#SEDPARAMSUSB = -e '/@module.usb@/d'
+#endif
+SEDEXTRAPARAMS += $(SEDPARAMSUSB)
+
+# Do we have any optional modules to include?
+ifeq ($(SEDEXTRAPARAMS),)
+SEDPARAMEXTRA= > $@
+else
+SEDPARAMEXTRA= |  $(SED) $(SEDEXTRAPARAMS)  > $@
+endif
+
+#
+# Main Config generation targets ...
+#
 bootloader-grub2-pc-x86_64: $(AROSARCHDIR)/grub/grub.cfg $(AROSDIR)/EFI/BOOT/grub/grub.cfg
 bootloader-grub2gfx-pc-x86_64: $(AROSARCHDIR)/grub/grub.cfg $(AROSDIR)/EFI/BOOT/grub/grub.cfg
 
@@ -21,10 +56,16 @@ else
 SEDPARAMS = -e 's|@debug@||g'
 endif
 
+$(AROSARCHDIR)/grub/grub.cfg : MODULE_CMD := module
 $(AROSARCHDIR)/grub/grub.cfg: grub.cfg
 	@$(ECHO) Generating $@...
-	@$(SED) $(SEDPARAMS) -e 's#@modules.default@#sed "s\#^\#    module \#g" $(MODULES_DEFAULT)#e' -e 's#@module.bootstrap@#$(MODULE_BOOTSTRAP)#g' $< > $@
+	@$(SED) $(SEDPARAMS) -e 's#@modules.default@#sed "s\#^\#    $(MODULE_CMD) \#g" $(MODULES_DEFAULT)#e' \
+		-e 's#@modules.extra@#sed "s\#^\#\#g" $(MODULES_EXTRA)#e' \
+		-e 's#@module.bootstrap@#$(MODULE_BOOTSTRAP)#g' $< $(SEDPARAMEXTRA)
 
+$(AROSDIR)/EFI/BOOT/grub/grub.cfg : MODULE_CMD := module2
 $(AROSDIR)/EFI/BOOT/grub/grub.cfg: grub-efi.cfg
 	@$(ECHO) Generating $@...
-	@$(SED) $(SEDPARAMS) -e 's#@modules.default@#sed "s\#^\#    module2 \#g" $(MODULES_DEFAULT)#e' -e 's#@module.bootstrap@#$(MODULE_BOOTSTRAP)#g' $< > $@
+	@$(SED) $(SEDPARAMS) -e 's#@modules.default@#sed "s\#^\#    $(MODULE_CMD) \#g" $(MODULES_DEFAULT)#e' \
+		-e 's#@modules.extra@#sed "s\#^\#\#g" $(MODULES_EXTRA)#e' \
+		-e 's#@module.bootstrap@#$(MODULE_BOOTSTRAP)#g' $< $(SEDPARAMEXTRA)
