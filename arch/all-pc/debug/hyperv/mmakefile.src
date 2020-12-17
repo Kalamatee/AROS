@@ -6,6 +6,9 @@ include $(SRCDIR)/config/aros.cfg
 #MM kernel-hyperv-debug-kobj: includes
 #MM kernel-hyperv-debug: includes
 
+#MM- kernel-debug-hyperv : kernel-debug-hyperv-$(DEBUG)
+#MM- kernel-debug-hyperv-yes : kernel-hyperv-debug
+
 USER_CPPFLAGS := \
                -DUSE_EXEC_DEBUG
 #USER_CPPFLAGS += -DDEBUG=1

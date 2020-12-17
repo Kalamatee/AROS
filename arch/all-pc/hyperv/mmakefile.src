@@ -1,22 +1,23 @@
+# $Id$
+
+include $(SRCDIR)/config/aros.cfg
 
 # -------- hyperv-pc drivers package --------
 
-#MM- kernel-bsp-x86_64 : kernel-hyperv
-#MM kernel-hyperv :	\
-#MM			   kernel-hvdebug-$(DEBUG)    \
-#MM			   kernel-hidd-vmbus-hv
+#MM- kernel-link-pc-x86_64 : kernel-hyperv-gz
+#MM- hyperv-debug-yes : 
 
-#MM- kernel-hvdebug-yes : kernel-hvdebug
+#MM kernel-hyperv : kernel-debug-hyperv kernel-hidd-vmbus-hv
 
+HVDEVS        :=
 HVRSRCS      :=
 # HyperV modules
-ifeq ($(DEBUG),yes)
+ifeq ('$(DEBUG)','yes')
 HVRSRCS      += hyperv-debug
 endif
 HVHIDDS      := vmbus-hv
 
 %make_package mmake=kernel-hyperv file=$(AROSARCHDIR)/aros-hyperv.pkg \
-	 res=$(HVRSRCS) hidds=$(HVHIDDS)
-#devs=$(HVDEVS) 
+	 devs=$(HVDEVS) res=$(HVRSRCS) hidds=$(HVHIDDS)
 
 %common
