@@ -1,5 +1,5 @@
 /*
-    Copyright © 2003-2020, The AROS Development Team. All rights reserved.
+    Copyright © 2020, The AROS Development Team. All rights reserved.
     $Id$
 */
 
@@ -45,9 +45,9 @@ static int VMBusHV_Init(LIBBASETYPEPTR LIBBASE)
 
     D(bug("[VMBusHV] %s: UtilityBase @ 0x%p\n", __func__, LIBBASE->psd.utilityBase);)
 
-    LIBBASE->psd.hidd_PCIDeviceMB = OOP_GetMethodID(IID_Hidd_PCIDevice, 0);
+    LIBBASE->psd.hwMethodBase = OOP_GetMethodID(IID_HW, 0);
 
-    D(bug("[VMBusHV] %s: PCIDevice MB = %08x\n", __func__, LIBBASE->psd.hidd_PCIDeviceMB);)
+    D(bug("[VMBusHV] %s: HW MB = %08x\n", __func__, LIBBASE->psd.hwMethodBase);)
 
     return TRUE;
 }
@@ -65,7 +65,7 @@ static int VMBusHV_Expunge(LIBBASETYPEPTR LIBBASE)
         struct pHidd_PCI_RemHardwareDriver msg, *pmsg=&msg;
 
         msg.mID = OOP_GetMethodID(IID_Hidd_PCI, moHidd_PCI_RemHardwareDriver);
-        msg.driverClass = LIBBASE->psd.vmbushvDriverClass;
+        msg.driverClass = LIBBASE->psd.vmbushvBusClass;
 
         ok = OOP_DoMethod(pci, (OOP_Msg)pmsg);
 

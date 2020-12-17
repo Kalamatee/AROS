@@ -3,8 +3,8 @@
 
 include $(SRCDIR)/config/aros.cfg
 
-#MM kernel-hvyperv-debug-kobj: includes
-#MM kernel-hvyperv-debug: includes
+#MM kernel-hyperv-debug-kobj: includes
+#MM kernel-hyperv-debug: includes
 
 USER_CPPFLAGS := \
                -DUSE_EXEC_DEBUG
@@ -19,7 +19,7 @@ HVDEBUG_FILES :=            \
 	    hyperv-tasks    \
 	    hyperv-cpu
 
-%build_module mmake=kernel-hvyperv-debug \
+%build_module mmake=kernel-hyperv-debug \
     modname=hyperv-debug modtype=resource \
     files="$(HVDEBUG_FILES)"
 

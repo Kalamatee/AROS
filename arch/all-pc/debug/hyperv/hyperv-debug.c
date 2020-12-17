@@ -168,13 +168,11 @@ static int HVExceptionHandler(void *ctx, void *handlerData, void *handlerData2)
     int ExitFlag = 0;
     char *cmd;
 
-    kprintf("\nAROS Hyper-V Debug Interface v1.1 (16.12.2020)\n");
+    kprintf("\nAROS Hyper-V Debug Interface v1.0 (16.12.2020)\n");
 
     kprintf("\n");
     kprintf("System state:\n      SysBase @ 0x%p, KernelBase @ 0x%p\n", SysBase, KernelBase);
     kprintf("        SysBase->DispCount = %u\n", SysBase->DispCount);
-
-    kprintf("\nType 'help' or '?' for a list of commands.\n");
 
     while (!(ExitFlag))
     {

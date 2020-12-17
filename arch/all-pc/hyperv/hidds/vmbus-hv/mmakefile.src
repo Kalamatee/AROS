@@ -2,15 +2,20 @@
 
 include $(SRCDIR)/config/aros.cfg
 
+#MM kernel-hidd-vmbus-hv : kernel-hidd-bus-includes
+
 FILES := \
         vmbus-hv_init \
+        vmbus-hv_msg \
         vmbus-hv_vmbusclass
 #        vmbus-hv_deviceclass
 
 USER_CPPFLAGS := \
                -D__OOP_NOLIBBASE__ \
                -D__OOP_NOATTRBASES__ \
-               -D__OOP_NOMETHODBASES__
+               -D__OOP_NOMETHODBASES__ \
+               -D__KERNEL_NOLIBBASE__
+
 #USER_CPPFLAGS += -DDEBUG=1
 
 %build_module mmake=kernel-hidd-vmbus-hv \
