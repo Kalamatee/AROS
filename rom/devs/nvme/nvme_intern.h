@@ -177,15 +177,19 @@ struct nvme_queue {
     UWORD q_irq;
     /* command queue */
     struct nvme_command *sqba;
+    UQUAD sq_dma;
     UWORD sq_head;
     UWORD sq_tail;
     /* completion queue */
     _NVMEQUEUE_CE_HOOK *cehooks;
     struct completionevent_handler **cehandlers;
+    struct completionevent_handler *ce_entries;
     volatile struct nvme_completion *cqba;
+    UQUAD cq_dma;
     UWORD cq_head;
     UWORD cq_phase;
-    unsigned long cmdid_data;//[];
+    UWORD cmdid_hint;
+    UBYTE *cmdid_busy;
 };
 
 struct nvme_Controller
@@ -204,7 +208,6 @@ struct nvme_Bus
     struct NVMEBase     *ab_Base;   /* device self */
     device_t            ab_Dev;
 
-    struct completionevent_handler *ab_CE;
     UWORD               ab_UnitMax;             /* Max units the bus can have   */
     UWORD               ab_UnitCnt;             /* actual # of units on the bus */
     OOP_Object          **ab_Units;

@@ -40,6 +40,7 @@
 #include LC_LIBDEFS_FILE
 
 extern BOOL nvme_initprp(struct nvme_command *cmdio, struct completionevent_handler *ioehandle, struct nvme_Unit *unit, ULONG len, APTR *data, BOOL is_write);
+extern BOOL nvme_initsgl(struct nvme_command *cmdio, struct completionevent_handler *ioehandle, struct nvme_Unit *unit, ULONG len, APTR *data, BOOL is_write);
 
 static BOOL nvme_sector_rw(struct IORequest *io, UQUAD off64, BOOL is_write)
 {
@@ -75,8 +76,10 @@ static BOOL nvme_sector_rw(struct IORequest *io, UQUAD off64, BOOL is_write)
     memset(&cmdio, 0, sizeof(cmdio));
     ioehandle.ceh_IOMem.me_Un.meu_Addr = NULL;
     if (!nvme_initprp(&cmdio, &ioehandle, unit, len, &data, is_write)) {
-        io->io_Error = IOERR_BADADDRESS;
-        return TRUE;
+        if (!nvme_initsgl(&cmdio, &ioehandle, unit, len, &data, is_write)) {
+            io->io_Error = IOERR_BADADDRESS;
+            return TRUE;
+        }
     }
 
     ULONG nsid = (unit->au_UnitNum & ((1 << 12) - 1)) + 1;
@@ -110,7 +113,14 @@ static BOOL nvme_sector_rw(struct IORequest *io, UQUAD off64, BOOL is_write)
     )
 
     CachePreDMA(data, &len, is_write ? DMAFLAGS_PREWRITE : DMAFLAGS_PREREAD);
-    nvme_submit_iocmd(unit->au_Bus->ab_CE, nvmeq, &cmdio, &ioehandle);
+    if (nvme_submit_iocmd(nvmeq, &cmdio, &ioehandle) != 0) {
+        if (ioehandle.ceh_IOMem.me_Un.meu_Addr) {
+            FreeMem(ioehandle.ceh_IOMem.me_Un.meu_Addr, ioehandle.ceh_IOMem.me_Length);
+            ioehandle.ceh_IOMem.me_Un.meu_Addr = NULL;
+        }
+        io->io_Error = IOERR_ABORTED;
+        return TRUE;
+    }
 
     return FALSE;
 }
