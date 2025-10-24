@@ -40,12 +40,14 @@
 #include LC_LIBDEFS_FILE
 
 extern BOOL nvme_initprp(struct nvme_command *cmdio, struct completionevent_handler *ioehandle, struct nvme_Unit *unit, ULONG len, APTR *data, BOOL is_write);
+extern BOOL nvme_initsgl(struct nvme_command *cmdio, struct completionevent_handler *ioehandle, struct nvme_Unit *unit, ULONG len, APTR *data, BOOL is_write);
 
 static BOOL nvme_sector_rw(struct IORequest *io, UQUAD off64, BOOL is_write)
 {
     struct IOExtTD *iotd = (struct IOExtTD *)io;
     struct nvme_Unit *unit = (struct nvme_Unit *)io->io_Unit;
     struct NVMEBase *NVMEBase = unit->au_Bus->ab_Base;
+    device_t dev = unit->au_Bus->ab_Dev;
     APTR data = iotd->iotd_Req.io_Data;
     ULONG len = iotd->iotd_Req.io_Length;
     struct nvme_queue *nvmeq;
@@ -73,10 +75,19 @@ static BOOL nvme_sector_rw(struct IORequest *io, UQUAD off64, BOOL is_write)
     }
 
     memset(&cmdio, 0, sizeof(cmdio));
-    ioehandle.ceh_IOMem.me_Un.meu_Addr = NULL;
+    memset(&ioehandle, 0, sizeof(ioehandle));
+    nvme_dma_init(&ioehandle);
+
     if (!nvme_initprp(&cmdio, &ioehandle, unit, len, &data, is_write)) {
-        io->io_Error = IOERR_BADADDRESS;
-        return TRUE;
+        nvme_dma_release(&ioehandle, TRUE);
+        nvme_dma_init(&ioehandle);
+
+        if (!dev || !(dev->dev_Features & NVME_DEVF_SGL_SUPPORTED) ||
+            !nvme_initsgl(&cmdio, &ioehandle, unit, len, &data, is_write)) {
+            nvme_dma_release(&ioehandle, TRUE);
+            io->io_Error = IOERR_BADADDRESS;
+            return TRUE;
+        }
     }
 
     ULONG nsid = (unit->au_UnitNum & ((1 << 12) - 1)) + 1;
@@ -109,8 +120,15 @@ static BOOL nvme_sector_rw(struct IORequest *io, UQUAD off64, BOOL is_write)
         bug("[NVME%02ld(%02u)] %s: %08x%08x (%u)\n", unit->au_UnitNum, queueno, __func__, (cmdio.rw.slba >> 32), (cmdio.rw.slba & 0xFFFFFFFF), AROS_LE2WORD(cmdio.rw.length));
     )
 
-    CachePreDMA(data, &len, is_write ? DMAFLAGS_PREWRITE : DMAFLAGS_PREREAD);
-    nvme_submit_iocmd(unit->au_Bus->ab_CE, nvmeq, &cmdio, &ioehandle);
+    if (nvme_submit_iocmd(nvmeq, &cmdio, &ioehandle) != 0) {
+        if (ioehandle.ceh_IOMem.me_Un.meu_Addr) {
+            FreeMem(ioehandle.ceh_IOMem.me_Un.meu_Addr, ioehandle.ceh_IOMem.me_Length);
+            ioehandle.ceh_IOMem.me_Un.meu_Addr = NULL;
+        }
+        nvme_dma_release(&ioehandle, TRUE);
+        io->io_Error = IOERR_ABORTED;
+        return TRUE;
+    }
 
     return FALSE;
 }
