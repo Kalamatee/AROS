@@ -86,8 +86,6 @@ void nvme_complete_ioevent(struct nvme_queue *nvmeq, struct nvme_completion *cqe
 
         D(bug ("[NVME:IOQ] %s: Signaling 0x%p (%08x)\n", __func__, slot->ceh_Task, slot->ceh_SigSet);)
         Signal(slot->ceh_Task, slot->ceh_SigSet);
-
-        nvmeq->cehooks[cqe->command_id] = NULL;
     }
 }
 
