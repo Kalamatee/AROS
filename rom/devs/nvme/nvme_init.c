@@ -240,6 +240,7 @@ AROS_UFH3(void, nvme_PCIEnumerator_h,
     if (dev == NULL)
         return;
 
+    memset(dev, 0, sizeof(*dev));
     dev->dev_NVMEBase = NVMEBase;
     dev->dev_Object   = Device;
     dev->dev_HostID   = NVMEBase->nvme_HostCount;
