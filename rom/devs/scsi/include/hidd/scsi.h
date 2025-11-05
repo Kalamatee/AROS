@@ -2,78 +2,124 @@
 #define HIDD_SCSI_H
 
 /*
-    Copyright © 2013-2018, The AROS Development Team. All rights reserved.
-    $Id$
+    Copyright  2013-2024, The AROS Development Team. All rights reserved.
 
-    Desc: SCSI bus driver HIDD definitions
+    Desc: Generic SCSI host controller definitions shared between
+          the scsi.device frontend and backend host adapters.
     Lang: english
 */
+
+#include <exec/types.h>
 
 #define CLID_Hidd_SCSI           "hidd.scsi"
 #define CLID_Hidd_SCSIBus        "hidd.scsi.bus"
 
-struct SCSI_BusInterface
-{
-    VOID  (*scsi_out    )(void *obj, UBYTE val, UWORD offset);
-    UBYTE (*scsi_in     )(void *obj, UWORD offset);
-    VOID  (*scsi_out_alt)(void *obj, UBYTE val, UWORD offset);
-    UBYTE (*scsi_in_alt )(void *obj, UWORD offset);
-};
-
-struct SCSI_PIOInterface
-{
-    VOID  (*scsi_outsw  )(void *obj, APTR address, ULONG count);
-    VOID  (*scsi_insw   )(void *obj, APTR address, ULONG count);
-    VOID  (*scsi_outsl  )(void *obj, APTR address, ULONG count);
-    VOID  (*scsi_insl   )(void *obj, APTR address, ULONG count);
-};
-
-struct SCSI_DMAInterface
-{
-    BOOL  (*dma_Prepare)(void *obj, APTR buffer, IPTR size, BOOL read);
-    VOID  (*dma_Start  )(void *obj);
-    VOID  (*dma_End    )(void *obj, APTR buffer, IPTR size, BOOL read);
-    ULONG (*dma_Result )(void *obj);
-};
+#define SCSI_MAX_CDB_LENGTH      16
+#define SCSI_MAX_SENSE_LENGTH    32
 
 typedef enum
 {
-   AB_XFER_PIO0 = 0,
-   AB_XFER_PIO1,
-   AB_XFER_PIO2,
-   AB_XFER_PIO3,
-   AB_XFER_PIO4,
+    SCSI_DATA_NONE,
+    SCSI_DATA_IN,
+    SCSI_DATA_OUT,
+    SCSI_DATA_BIDIRECTIONAL
+} SCSI_DataDirection;
 
-   AB_XFER_MDMA0,
-   AB_XFER_MDMA1,
-   AB_XFER_MDMA2,
+enum SCSI_CommandFlags
+{
+    SCSI_CF_AUTOSENSE   = 1 << 0,
+    SCSI_CF_TAGGED      = 1 << 1,
+    SCSI_CF_POLL        = 1 << 2,
+    SCSI_CF_ORDERED     = 1 << 3,
+    SCSI_CF_QUIET       = 1 << 4
+};
 
-   AB_XFER_UDMA0,
-   AB_XFER_UDMA1,
-   AB_XFER_UDMA2,
-   AB_XFER_UDMA3,
-   AB_XFER_UDMA4,
-   AB_XFER_UDMA5,
-   AB_XFER_UDMA6,
+struct SCSI_Command
+{
+    UBYTE               target;                     /* Target identifier              */
+    UBYTE               lun;                        /* Logical unit number            */
+    UBYTE               cdb[SCSI_MAX_CDB_LENGTH];   /* Command descriptor block       */
+    UBYTE               cdbLength;                  /* Length of the CDB              */
+    SCSI_DataDirection  direction;                  /* Expected data transfer         */
+    APTR                data;                       /* Data buffer pointer            */
+    ULONG               dataLength;                 /* Requested transfer size        */
+    ULONG               actualLength;               /* Completed transfer size        */
+    ULONG               timeoutMS;                  /* Command timeout in milliseconds*/
+    UBYTE               status;                     /* Returned SCSI status byte      */
+    UBYTE               sense[SCSI_MAX_SENSE_LENGTH]; /* Sense data buffer            */
+    UBYTE               senseLength;                /* Valid sense data length        */
+    UBYTE               flags;                      /* SCSI_CommandFlags combination  */
+};
 
-   AB_XFER_48BIT = 27, /* LBA48         */
-   AB_XFER_RWMULTI,    /* Multisector   */
-   AB_XFER_PACKET,     /* ATAPI         */
-   AB_XFER_LBA,        /* LBA28         */
-   AB_XFER_PIO32       /* 32-bit PIO    */
-} scsi_XferMode;
+enum SCSI_BusFeature
+{
+    SCSI_BF_PARITY      = 1 << 0,
+    SCSI_BF_DMA         = 1 << 1,
+    SCSI_BF_SYNC        = 1 << 2,
+    SCSI_BF_WIDE        = 1 << 3,
+    SCSI_BF_TAGGED      = 1 << 4,
+    SCSI_BF_AUTOSENSE   = 1 << 5
+};
 
-#define AF_XFER_PIO(x)  (1<<(AB_XFER_PIO0+(x)))
-#define AF_XFER_MDMA(x) (1<<(AB_XFER_MDMA0+(x)))
-#define AF_XFER_UDMA(x) (1<<(AB_XFER_UDMA0+(x)))
-#define AF_XFER_48BIT   (1<<(AB_XFER_48BIT))
-#define AF_XFER_RWMULTI (1<<(AB_XFER_RWMULTI))
-#define AF_XFER_PACKET  (1<<(AB_XFER_PACKET))
-#define AF_XFER_LBA     (1<<(AB_XFER_LBA))
-#define AF_XFER_PIO32   (1<<(AB_XFER_PIO32))
+struct SCSI_TargetSettings
+{
+    UWORD               transferPeriodNS;           /* Requested synchronous period   */
+    UBYTE               maxOffset;                  /* REQ/ACK offset                 */
+    UBYTE               busWidth;                   /* 0 = 8-bit, 1 = 16-bit, etc.    */
+    UBYTE               flags;                      /* SCSI_TargetFlag combination    */
+};
 
-//#include <interface/Hidd_SCSI.h>
-#include <interface/Hidd_SCSIBus.h>
-#include <interface/Hidd_SCSIUnit.h>
+enum SCSI_TargetFlag
+{
+    SCSI_TF_ALLOW_DISC  = 1 << 0,
+    SCSI_TF_TAGGED      = 1 << 1
+};
 
-#endif
+struct SCSI_BusInterface
+{
+    BOOL  (*queue)(void *obj, struct SCSI_Command *cmd);                     /* Submit and wait for command */
+    BOOL  (*reset)(void *obj, ULONG flags);                                  /* Reset bus or target         */
+    BOOL  (*set_target)(void *obj, UBYTE target, const struct SCSI_TargetSettings *settings);
+    VOID  (*poll)(void *obj);                                                /* Poll outstanding activity   */
+};
+
+enum SCSI_ResetFlags
+{
+    SCSI_RESET_BUS      = 1 << 0,
+    SCSI_RESET_DEVICE   = 1 << 1,
+    SCSI_RESET_ABORT    = 1 << 2
+};
+
+enum SCSI_BusAttribute
+{
+    aoHidd_SCSIBus_MaxTargets = 0x08000000,
+    aoHidd_SCSIBus_MaxLUNs,
+    aoHidd_SCSIBus_Features,
+    aoHidd_SCSIBus_InterfaceDataSize,
+    aoHidd_SCSIBus_InterfaceVectors,
+    aoHidd_SCSIBus_CommandQueueDepth,
+    aoHidd_SCSIBus_MinTransferPeriod,
+    aoHidd_SCSIBus_MaxTransferPeriod
+};
+
+enum SCSI_UnitAttribute
+{
+    aoHidd_SCSIUnit_TargetID = 0x08000100,
+    aoHidd_SCSIUnit_LUN,
+    aoHidd_SCSIUnit_DeviceType,
+    aoHidd_SCSIUnit_BlockSize,
+    aoHidd_SCSIUnit_Capacity,
+    aoHidd_SCSIUnit_Flags,
+    aoHidd_SCSIUnit_InquiryData
+};
+
+enum SCSI_UnitFlag
+{
+    SCSI_UF_REMOVABLE   = 1 << 0,
+    SCSI_UF_PRESENT     = 1 << 1,
+    SCSI_UF_TAGGED      = 1 << 2,
+    SCSI_UF_SYNC        = 1 << 3,
+    SCSI_UF_CHANGED     = 1 << 4
+};
+
+#endif /* HIDD_SCSI_H */

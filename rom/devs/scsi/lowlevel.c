@@ -1,184 +1,328 @@
 /*
-    Copyright (C) 2004-2018, The AROS Development Team. All rights reserved.
-    $Id: lowlevel.c 55802 2019-03-08 21:47:59Z wawa $
-
-    Desc:
+    Low level helper routines for scsi.device. These functions translate the
+    high level block operations into SCSI command descriptor blocks and submit
+    them to the backend host adapter.
 */
-
-/*
- * TODO:
- * - put a critical section around DMA transfers (shared dma channels)
- */
 
 #include <aros/debug.h>
 
 #include <proto/exec.h>
 
-#include <exec/types.h>
-#include <exec/exec.h>
-#include <exec/resident.h>
-#include <utility/utility.h>
-#include <oop/oop.h>
+#include <string.h>
 
-#include <devices/timer.h>
+#include <devices/scsidisk.h>
 
 #include "scsi.h"
 #include "scsi_bus.h"
-#include "timer.h"
 
-// use #define xxx(a) D(a) to enable particular sections.
-#if DEBUG
-#define DIRQ(a) D(a)
-#define DIRQ_MORE(a)
-#define DUMP(a) D(a)
-#define DUMP_MORE(a)
-#define DSCSI(a) D(a)
-#define DATAPI(a) D(a)
-#define DINIT(a) D(a)
-#else
-#define DIRQ(a)      do { } while (0)
-#define DIRQ_MORE(a) do { } while (0)
-#define DUMP(a)      do { } while (0)
-#define DUMP_MORE(a) do { } while (0)
-#define DSCSI(a)      do { } while (0)
-#define DATAPI(a)    do { } while (0)
-#define DINIT(a)
-#endif
-/* Errors that shouldn't happen */
-#define DERROR(a) a
+#define DEFAULT_COMMAND_TIMEOUT   30000
 
-/*
- * Initial device configuration that suits *all* cases
- */
-void scsi_init_unit(struct scsi_Bus *bus, struct scsi_Unit *unit, UBYTE u)
+static BYTE scsi_MapStatus(struct scsi_Unit *unit, struct SCSI_Command *cmd)
 {
-    struct scsiBase *SCSIBase = bus->sb_Base;
-    OOP_Object *obj = OOP_OBJECT(SCSIBase->busClass, bus);
+    switch (cmd->status)
+    {
+        case SCSI_STATUS_GOOD:
+        case SCSI_STATUS_INTERMEDIATE:
+            return 0;
+        case SCSI_STATUS_CHECK_CONDITION:
+            if (cmd->senseLength >= 14)
+            {
+                unit->su_SenseKey = cmd->sense[2] & 0x0f;
+                unit->su_ASC      = cmd->sense[12];
+                unit->su_ASCQ     = cmd->sense[13];
+            }
+            return HFERR_BadStatus;
+        case SCSI_STATUS_BUSY:
+            return HFERR_SelTimeout;
+        default:
+            return HFERR_Phase;
+    }
+}
 
-    unit->su_Bus       = bus;
-    unit->pioInterface = bus->pioInterface;
-    unit->su_UnitNum   = bus->sb_BusNum << 1 | u;      // b << 8 | u
-    unit->su_DevMask   = 0xa0 | (u << 4);
+BYTE scsi_PerformCommand(struct scsi_Unit *unit, struct SCSI_Command *cmd)
+{
+    struct scsi_Bus *bus = unit->su_Bus;
 
-    DINIT(bug("[SCSI%02u] scsi_init_unit: bus %u unit %d\n", unit->su_UnitNum, bus->sb_BusNum, u));
+    if (!bus)
+        return HFERR_SelfUnit;
 
-#if (0)
-    /* Set PIO transfer functions, either 16 or 32 bits */
-    if (SCSIBase->scsi_32bit && OOP_GET(obj, aHidd_SCSIBus_Use32Bit))
-        Unit_Enable32Bit(unit);
+    cmd->target = unit->su_Target;
+    cmd->lun    = unit->su_Lun;
+    if (!cmd->timeoutMS)
+        cmd->timeoutMS = DEFAULT_COMMAND_TIMEOUT;
+    if (!(cmd->flags & SCSI_CF_AUTOSENSE))
+        cmd->flags |= SCSI_CF_AUTOSENSE;
+    cmd->actualLength = 0;
+    unit->su_SenseKey = 0;
+    unit->su_ASC = 0;
+    unit->su_ASCQ = 0;
+
+    if (!SCSI_BusQueueCommand(bus, cmd))
+        return HFERR_Phase;
+
+    return scsi_MapStatus(unit, cmd);
+}
+
+BYTE scsi_Inquiry(struct scsi_Unit *unit, UBYTE page, APTR buffer, ULONG length)
+{
+    struct SCSI_Command cmd;
+
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.cdb[0] = SCSI_INQUIRY;
+    cmd.cdb[1] = page ? 0x01 : 0x00;
+    cmd.cdb[2] = page;
+    cmd.cdb[4] = (UBYTE)length;
+    cmd.cdbLength = 6;
+    cmd.direction = SCSI_DATA_IN;
+    cmd.data = buffer;
+    cmd.dataLength = length;
+
+    return scsi_PerformCommand(unit, &cmd);
+}
+
+BYTE scsi_ReadCapacity(struct scsi_Unit *unit, UBYTE serviceAction, APTR buffer, ULONG length)
+{
+    struct SCSI_Command cmd;
+
+    memset(&cmd, 0, sizeof(cmd));
+    if (serviceAction == 0x10)
+    {
+        cmd.cdb[0] = SCSI_SERVICE_ACTION_IN_16;
+        cmd.cdb[1] = serviceAction;
+        cmd.cdb[10] = (length >> 24) & 0xff;
+        cmd.cdb[11] = (length >> 16) & 0xff;
+        cmd.cdb[12] = (length >> 8) & 0xff;
+        cmd.cdb[13] = length & 0xff;
+        cmd.cdbLength = 16;
+    }
     else
-        Unit_Disable32Bit(unit);
-#endif
+    {
+        cmd.cdb[0] = SCSI_READCAPACITY;
+        cmd.cdbLength = 10;
+    }
+    cmd.direction = SCSI_DATA_IN;
+    cmd.data = buffer;
+    cmd.dataLength = length;
+
+    return scsi_PerformCommand(unit, &cmd);
+}
+
+BYTE scsi_TestUnitReady(struct scsi_Unit *unit)
+{
+    struct SCSI_Command cmd;
+
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.cdb[0] = SCSI_TESTUNITREADY;
+    cmd.cdbLength = 6;
+    cmd.direction = SCSI_DATA_NONE;
+
+    return scsi_PerformCommand(unit, &cmd);
+}
+
+BYTE scsi_RequestSense(struct scsi_Unit *unit, APTR buffer, ULONG length)
+{
+    struct SCSI_Command cmd;
+
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.cdb[0] = SCSI_REQUESTSENSE;
+    cmd.cdb[4] = (UBYTE)length;
+    cmd.cdbLength = 6;
+    cmd.direction = SCSI_DATA_IN;
+    cmd.data = buffer;
+    cmd.dataLength = length;
+
+    return scsi_PerformCommand(unit, &cmd);
+}
+
+static BYTE scsi_CommandRW(struct scsi_Unit *unit, UQUAD block, ULONG count,
+                           APTR buffer, ULONG *actual, BOOL write, BOOL use16)
+{
+    struct SCSI_Command cmd;
+    ULONG transfer = count * unit->su_BlockSize;
+    BYTE err;
+
+    memset(&cmd, 0, sizeof(cmd));
+    if (use16)
+    {
+        cmd.cdb[0] = write ? SCSI_WRITE16 : SCSI_READ16;
+        cmd.cdb[1] = 0;
+        cmd.cdb[2] = (block >> 56) & 0xff;
+        cmd.cdb[3] = (block >> 48) & 0xff;
+        cmd.cdb[4] = (block >> 40) & 0xff;
+        cmd.cdb[5] = (block >> 32) & 0xff;
+        cmd.cdb[6] = (block >> 24) & 0xff;
+        cmd.cdb[7] = (block >> 16) & 0xff;
+        cmd.cdb[8] = (block >> 8) & 0xff;
+        cmd.cdb[9] = block & 0xff;
+        cmd.cdb[10] = (count >> 24) & 0xff;
+        cmd.cdb[11] = (count >> 16) & 0xff;
+        cmd.cdb[12] = (count >> 8) & 0xff;
+        cmd.cdb[13] = count & 0xff;
+        cmd.cdbLength = 16;
+    }
+    else
+    {
+        cmd.cdb[0] = write ? SCSI_WRITE10 : SCSI_READ10;
+        cmd.cdb[2] = (block >> 24) & 0xff;
+        cmd.cdb[3] = (block >> 16) & 0xff;
+        cmd.cdb[4] = (block >> 8) & 0xff;
+        cmd.cdb[5] = block & 0xff;
+        cmd.cdb[7] = (count >> 8) & 0xff;
+        cmd.cdb[8] = count & 0xff;
+        cmd.cdbLength = 10;
+    }
+
+    cmd.direction = write ? SCSI_DATA_OUT : SCSI_DATA_IN;
+    cmd.data = buffer;
+    cmd.dataLength = transfer;
+
+    err = scsi_PerformCommand(unit, &cmd);
+    if (!err && actual)
+        *actual = cmd.actualLength ? cmd.actualLength : transfer;
+
+    return err;
+}
+
+static BYTE scsi_SyncCache(struct scsi_Unit *unit)
+{
+    struct SCSI_Command cmd;
+
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.cdb[0] = SCSI_SYNCHRONIZE_CACHE;
+    cmd.cdbLength = 10;
+    cmd.direction = SCSI_DATA_NONE;
+
+    return scsi_PerformCommand(unit, &cmd);
+}
+
+static BYTE scsi_ReadBlocks32(struct scsi_Unit *unit, ULONG block, ULONG count,
+                              APTR buffer, ULONG *actual)
+{
+    return scsi_CommandRW(unit, block, count, buffer, actual, FALSE, FALSE);
+}
+
+static BYTE scsi_WriteBlocks32(struct scsi_Unit *unit, ULONG block, ULONG count,
+                               APTR buffer, ULONG *actual)
+{
+    return scsi_CommandRW(unit, block, count, buffer, actual, TRUE, FALSE);
+}
+
+static BYTE scsi_ReadBlocks64(struct scsi_Unit *unit, UQUAD block, ULONG count,
+                              APTR buffer, ULONG *actual)
+{
+    return scsi_CommandRW(unit, block, count, buffer, actual, FALSE, TRUE);
+}
+
+static BYTE scsi_WriteBlocks64(struct scsi_Unit *unit, UQUAD block, ULONG count,
+                               APTR buffer, ULONG *actual)
+{
+    return scsi_CommandRW(unit, block, count, buffer, actual, TRUE, TRUE);
+}
+
+void scsi_init_unit(struct scsi_Bus *bus, struct scsi_Unit *unit, UBYTE target, UBYTE lun)
+{
+    unit->su_Bus = bus;
+    unit->su_Target = target;
+    unit->su_Lun = lun;
+    unit->su_UnitNum = (bus->sb_BusNum << 8) | (target << 4) | lun;
+    unit->su_Flags = 0;
+    unit->su_InternalFlags = 0;
 }
 
 BOOL scsi_setup_unit(struct scsi_Bus *bus, struct scsi_Unit *unit)
 {
-    /*
-     * this stuff always goes along the same way
-     * WARNING: NO INTERRUPTS AT THIS POINT!
-     */
-    UBYTE u;
+    UBYTE inquiry[96];
+    UBYTE capacity[32];
+    BYTE err;
 
-    DINIT(bug("[SCSI  ] scsi_setup_unit(%d)\n", unit->su_UnitNum));
-#if (0)
-    scsi_SelectUnit(unit);
+    (void)bus;
 
-    if (FALSE == scsi_WaitBusyTO(unit, 1, FALSE, FALSE, NULL))
-    {
-        DINIT(bug("[SCSI%02ld] scsi_setup_unit: ERROR: Drive not ready for use. Keeping functions stubbed\n", unit->su_UnitNum));
+    err = scsi_Inquiry(unit, 0, inquiry, sizeof(inquiry));
+    if (err)
         return FALSE;
-    }
 
-    u = unit->su_UnitNum & 1;
-    switch (bus->sb_Dev[u])
+    memcpy(unit->su_Inquiry, inquiry, sizeof(inquiry));
+    unit->su_DeviceType = inquiry[0] & 0x1f;
+    if (inquiry[1] & 0x80)
+        unit->su_Flags |= SCSI_UF_REMOVABLE;
+    unit->su_Flags |= SCSI_UF_PRESENT;
+
+    err = scsi_ReadCapacity(unit, 0x10, capacity, sizeof(capacity));
+    if (err)
     {
-        /*
-         * safe fallback settings
-         */
-        case DEV_SATAPI:
-        case DEV_ATAPI:
-        case DEV_SATA:
-        case DEV_ATA:
-            unit->su_Identify = scsi_Identify;
-            break;
+        err = scsi_ReadCapacity(unit, 0x00, capacity, 8);
+        if (!err)
+        {
+            ULONG last = (capacity[0] << 24) | (capacity[1] << 16) |
+                         (capacity[2] << 8) | capacity[3];
+            ULONG blockSize = (capacity[4] << 24) | (capacity[5] << 16) |
+                              (capacity[6] << 8) | capacity[7];
 
-        default:
-            DINIT(bug("[SCSI%02ld] scsi_setup_unit: Unsupported device %lx. All functions will remain stubbed.\n", unit->su_UnitNum, bus->sb_Dev[u]));
-            return FALSE;
+            if (blockSize == 0)
+                blockSize = 512;
+
+            unit->su_BlockSize = blockSize;
+            unit->su_Capacity = (UQUAD)last + 1;
+            unit->su_Capacity48 = unit->su_Capacity;
+        }
     }
-
-    DINIT(bug("[SCSI  ] scsi_setup_unit: Enabling IRQs\n"));
-    PIO_OutAlt(bus, 0x0, scsi_AltControl);
-
-    /*
-     * now make unit self diagnose
-     */
-    if (unit->su_Identify(unit) != 0)
+    else
     {
-        return FALSE;
+        UQUAD lastBlock = 0;
+        ULONG blockSize = 512;
+
+        lastBlock = ((UQUAD)capacity[0] << 56) |
+                    ((UQUAD)capacity[1] << 48) |
+                    ((UQUAD)capacity[2] << 40) |
+                    ((UQUAD)capacity[3] << 32) |
+                    ((UQUAD)capacity[4] << 24) |
+                    ((UQUAD)capacity[5] << 16) |
+                    ((UQUAD)capacity[6] << 8)  |
+                    ((UQUAD)capacity[7]);
+        blockSize = (capacity[8] << 24) | (capacity[9] << 16) |
+                    (capacity[10] << 8) | capacity[11];
+
+        if (blockSize == 0)
+            blockSize = 512;
+
+        unit->su_BlockSize = blockSize;
+        unit->su_Capacity = lastBlock + 1;
+        unit->su_Capacity48 = unit->su_Capacity;
     }
-#endif
+
+    {
+        UBYTE shift = 0;
+        ULONG size = unit->su_BlockSize;
+        while ((1UL << shift) < size && shift < 31)
+            shift++;
+        if ((1UL << shift) != size)
+            shift = 9;
+        unit->su_SectorShift = shift;
+    }
+
+    unit->su_XferModes = 0;
+    unit->su_UseModes = 0;
+
+    if (unit->su_DeviceType != SCSI_DEVICE_DIRECT_ACCESS)
+        unit->su_XferModes |= AF_XFER_PACKET;
+
+    unit->su_UseModes = unit->su_XferModes;
+
+    unit->su_Heads = 1;
+    unit->su_Sectors = 1;
+    unit->su_Cylinders = (ULONG)(unit->su_Capacity);
+
+    unit->su_Read32 = scsi_ReadBlocks32;
+    unit->su_Write32 = scsi_WriteBlocks32;
+    unit->su_Read64 = scsi_ReadBlocks64;
+    unit->su_Write64 = scsi_WriteBlocks64;
+    unit->su_SynchronizeCache = scsi_SyncCache;
 
     return TRUE;
 }
 
 void scsi_InitBus(struct scsi_Bus *bus)
 {
-    struct scsiBase *SCSIBase = bus->sb_Base;
-    OOP_Object *obj = OOP_OBJECT(SCSIBase->busClass, bus);
-    IPTR haveAltIO;
-    UBYTE tmp1, tmp2;
-    UWORD i;
-
-    /*
-     * initialize timer for the sake of scanning
-     */
-    bus->sb_Timer = scsi_OpenTimer(bus->sb_Base);
-
-#if (0)
-    OOP_GetAttr(obj, aHidd_SCSIBus_UseIOAlt, &haveAltIO);
-    bus->haveAltIO = haveAltIO != 0;
-#endif
-
-    DINIT(bug("[SCSI  ] scsi_InitBus(%p)\n", bus));
-
-    bus->sb_Dev[0] = DEV_NONE;
-    bus->sb_Dev[1] = DEV_NONE;
-
-    /* Check if device 0 and/or 1 is present on this bus. It may happen that
-       a single drive answers for both device addresses, but the phantom
-       drive will be filtered out later */
-    for (i = 0; i < MAX_BUSUNITS; i++)
-    {
-        /* Select device and disable IRQs */
-#if (0)
-        PIO_Out(bus, DEVHEAD_VAL | (i << 4), scsi_DevHead);
-#endif
-        scsi_WaitTO(bus->sb_Timer, 0, 400, 0);
-        PIO_OutAlt(bus, SCSICTLF_INT_DISABLE, scsi_AltControl);
-
-        /* Write some pattern to registers. This is a variant of a more
-           common technique, with the difference that we don't use the
-           sector count register because some bad ATAPI drives disallow
-           writing to it */
-        PIO_Out(bus, 0x55, scsi_LBALow);
-        PIO_Out(bus, 0xaa, scsi_LBAMid);
-        PIO_Out(bus, 0xaa, scsi_LBALow);
-        PIO_Out(bus, 0x55, scsi_LBAMid);
-        PIO_Out(bus, 0x55, scsi_LBALow);
-        PIO_Out(bus, 0xaa, scsi_LBAMid);
-
-        tmp1 = PIO_In(bus, scsi_LBALow);
-        tmp2 = PIO_In(bus, scsi_LBAMid);
-        DB2(bug("[SCSI  ] scsi_InitBus: Reply 0x%02X 0x%02X\n", tmp1, tmp2));
-
-        if ((tmp1 == 0x55) && (tmp2 == 0xaa))
-            bus->sb_Dev[i] = DEV_UNKNOWN;
-        DINIT(bug("[SCSI  ] scsi_InitBus: Device type = 0x%02X\n", bus->sb_Dev[i]));
-    }
-#if (0)
-    scsi_ResetBus(bus);
-#endif
-    scsi_CloseTimer(bus->sb_Timer);
-    DINIT(bug("[SCSI  ] scsi_InitBus: Finished\n"));
+    (void)bus;
 }
+

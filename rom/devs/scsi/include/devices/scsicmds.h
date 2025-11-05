@@ -2,8 +2,7 @@
 #define DEVICES_SCSICMDS_H
 
 /*
-    Copyright © 1995-2001, The AROS Development Team. All rights reserved.
-    $Id$
+    Copyright  1995-2024, The AROS Development Team. All rights reserved.
 
     Desc: SCSI commands
     Lang: english
@@ -29,6 +28,7 @@
 #define SCSI_WRITE10            0x2A
 #define SCSI_SEEK10             0x2B
 #define SCSI_VERIFY10           0x2F
+#define SCSI_SYNCHRONIZE_CACHE  0x35
 #define SCSI_MODESELECT10       0x55
 #define SCSI_RESERVE10          0x56
 #define SCSI_RELEASE10          0x57
@@ -36,5 +36,9 @@
 #define SCSI_READ12             0xA8
 #define SCSI_WRITE12            0xAA
 #define SCSI_VERIFY12           0xAF
+#define SCSI_READ16             0x88
+#define SCSI_WRITE16            0x8A
+#define SCSI_VERIFY16           0x8F
+#define SCSI_SERVICE_ACTION_IN_16 0x9E
 
 #endif /* DEVICES_SCSICMDS_H */

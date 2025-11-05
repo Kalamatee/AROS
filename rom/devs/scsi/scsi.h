@@ -2,11 +2,7 @@
 #define _SCSI_H
 
 /*
-    Copyright © 2019, The AROS Development Team. All rights reserved.
-    $Id$
-
-    Desc: scsi.device main private include file
-    Lang: English
+    Generic definitions for scsi.device.
 */
 
 #if !defined(__OOP_NOMETHODBASES__)
@@ -31,62 +27,43 @@
 #include <hardware/scsi.h>
 #include <hidd/scsi.h>
 
-#include "include/devices/scsicmds.h"
-
-#define MAX_DEVICEBUSES         2
-#define MAX_BUSUNITS            2
+#define MAX_DEVICEBUSES         4
+#define SCSI_MAX_TARGETS        16
+#define SCSI_MAX_LUNS           8
 #define STACK_SIZE              16384
 #define TASK_PRI                10
 #define TIMEOUT                 30
 
-/*
-   Don't blame me for information redundance here!
-
-   Please note, that all structures here are more or less chained together.
-   The aim is, every single function in ata.device, no matter whether it takes
-   scsi_Unit or scsi_Bus or God knows what else, would have access to ata device
-   base and through it, to all other device structures.
-
-   I just wanted to avoid passing scsiBase everywhere. :-D
-   */
-
-/* structure forward declarations */
 struct scsi_Unit;
 struct scsi_Bus;
 
-/* ata.device base */
 struct scsiBase
 {
-    struct Device           	scsi_Device;    			/* Exec device structure                */
-    struct Task            	*scsi_Daemon;    		/* master task pointer                  */
-    struct MsgPort         	*DaemonPort;    		/* Daemon's message port                */
-    struct MinList          	Daemon_ios;    			/* Daemon's IORequests                  */
-    struct SignalSemaphore  	DaemonSem;
-    struct Task            	*daemonParent;  		/* Who sends control requests to daemon */
-    int                     	scsi__buscount; 			/* Number of all buses                  */
-    struct SignalSemaphore  	DetectionSem;  			/* Device detection semaphore           */
+    struct Device               scsi_Device;
+    struct Task                *scsi_Daemon;
+    struct MsgPort             *DaemonPort;
+    struct MinList              Daemon_ios;
+    struct SignalSemaphore      DaemonSem;
+    struct Task                *daemonParent;
+    int                         scsi__buscount;
+    struct SignalSemaphore      DetectionSem;
 
-    /* Arguments and flags */
-    UBYTE                   	scsi_32bit;
-    UBYTE                   	scsi_NoMulti;
-    UBYTE                   	scsi_NoDMA;
-    UBYTE                   	scsi_Poll;
+    UBYTE                       scsi_EnableTagged;
+    UBYTE                       scsi_EnableSynchronous;
+    UBYTE                       scsi_EnableWide;
+    UBYTE                       scsi_Poll;
 
-    /*
-     * memory pool
-     */
-    APTR                    	scsi_MemPool;
+    APTR                        scsi_MemPool;
 
-    ULONG                   	scsi_ItersPer100ns;
+    ULONG                       scsi_ItersPer100ns;
 
-    struct Library         	*scsi_OOPBase;
-    struct Library         	*scsi_UtilityBase;
-    BPTR                    	scsi_SegList;
+    struct Library             *scsi_OOPBase;
+    struct Library             *scsi_UtilityBase;
+    BPTR                        scsi_SegList;
 
-    /* Bus HIDD classes */
-    OOP_Class              	*scsiClass;
-    OOP_Class              	*busClass;
-    OOP_Class              	*unitClass;
+    OOP_Class                  *scsiClass;
+    OOP_Class                  *busClass;
+    OOP_Class                  *unitClass;
 
 #if defined(__OOP_NOATTRBASES__)
     OOP_AttrBase                unitAttrBase;
@@ -130,254 +107,176 @@ struct scsiBase
 
 struct scsi_Controller
 {
-    struct Node         	sc_Node;
-    OOP_Class           	*sc_Class;
-    OOP_Object          	*sc_Object;
+    struct Node                 sc_Node;
+    OOP_Class                  *sc_Class;
+    OOP_Object                 *sc_Object;
 };
 
-/*
-   A single IDE bus (channel)
-   */
 struct scsi_Bus
 {
-   struct scsiBase          	*sb_Base;  			/* device self */
+    struct scsiBase            *sb_Base;
 
-   /** Bus object data **/
-   struct SCSI_BusInterface	*busVectors;     		/* Control vector table     */
-   struct SCSI_PIOInterface	*pioVectors;     		/* PIO vector table         */
-   APTR                    	*dmaVectors;     		/* DMA vector table         */
-   ULONG                   	pioDataSize;     		/* PIO interface data size  */
-   ULONG                   	dmaDataSize;     		/* DMA interface data size  */
-   void                    	*pioInterface;   		/* PIO interface object     */
-   void                    	*dmaInterface;   		/* DMA interface object     */
-   BOOL                    	keepEmpty;       		/* Whether we should keep empty bus object */
-   BOOL                    	haveAltIO;
+    struct SCSI_BusInterface   *sb_Interface;
+    void                       *sb_InterfaceData;
+    ULONG                       sb_InterfaceSize;
+    ULONG                       sb_Features;
+    ULONG                       sb_CommandQueueDepth;
+    UBYTE                       sb_MaxTargets;
+    UBYTE                       sb_MaxLUNs;
+    UBYTE                       sb_BusNum;
 
-   volatile UBYTE          	sb_Dev[MAX_BUSUNITS];		/* Master/Slave type, see below */
-   UBYTE                   	sb_Flags;   			/* Bus flags similar to unit flags */
-   BYTE                    	sb_SleepySignal; 		/* Signal used to wake the task up, when it's waiting */
+    struct scsi_Unit           *sb_SelectedUnit;
 
-   /** Data Requests/DMA **/
-   UBYTE                   	sb_BusNum;  			/* bus id - used to calculate device id */
+    struct Task                *sb_Task;
+    struct MsgPort             *sb_MsgPort;
+    struct IORequest           *sb_Timer;
 
-   OOP_Object        		*sb_Units[MAX_BUSUNITS];   	/* Units on the bus */
-   struct scsi_Unit         	*sb_SelectedUnit;    		/* Currently selected unit */
+    struct Interrupt            sb_ResetInt;
 
-   ULONG                   	sb_IntCnt;
+    APTR                        sb_CommandPool;
 
-   struct Task             	*sb_Task;       		/* Bus task handling all not-immediate transactions */
-   struct MsgPort          	*sb_MsgPort;    		/* Task's message port */
-   struct IORequest        	*sb_Timer;      		/* timer stuff */
-
-   struct Interrupt        	sb_ResetInt;
-
-   APTR                    	sb_BounceBufferPool;
-
-   /** functions go here **/
-   void                   	(*sb_HandleIRQ)(struct scsi_Unit* unit, UBYTE status);
+    ULONG                       sb_IntCnt;
 };
 
-/* Device types */
-#define DEV_NONE        		0x00
-#define DEV_UNKNOWN    			0x01
-#define DEV_ATA         		0x02
-#define DEV_SATA        		0x03
-#define DEV_ATAPI      		 	0x80
-#define DEV_SATAPI     			0x81
-
-/*
-   DriveIdent structure as returned by ATA_IDENTIFY_[DEVICE|ATAPI]
-   */
-struct DriveIdent {
-   UWORD       id_General;             // 0
-   UWORD       id_OldCylinders;        // 1
-   UWORD       id_SpecificConfig;      // 2
-   UWORD       id_OldHeads;            // 3
-   UWORD       pad1[2];                // 4-5
-   UWORD       id_OldSectors;          // 6
-   UWORD       pad2[3];                // 7-9
-   UBYTE       id_SerialNumber[20];    // 10-19
-   UWORD       pad3;                   // 20
-   ULONG       id_BufSize;             // 21-22
-   UBYTE       id_FirmwareRev[8];      // 23-26
-   UBYTE       id_Model[40];           // 27-46
-   UWORD       id_RWMultipleSize;      // 47
-   union {
-      UWORD    id_io32;                 // 48
-      UWORD    id_Trusted;
-   };
-   UWORD       id_Capabilities;        // 49
-   UWORD       id_OldCaps;             // 50
-   UWORD       id_OldPIO;              // 51
-   UWORD       id_OldDMA;              // 52
-   UWORD       id_ConfigAvailable;     // 53
-   UWORD       id_OldLCylinders;       // 54
-   UWORD       id_OldLHeads;           // 55
-   UWORD       id_OldLSectors;         // 56
-   UWORD       pad6[2];                // 57-58
-   UWORD       id_RWMultipleTrans;     // 59
-   ULONG       id_LBASectors;          // 60-61
-   UWORD       id_DMADir;              // 62
-   UWORD       id_MWDMASupport;        // 63
-   UWORD       id_PIOSupport;          // 64
-   UWORD       id_MWDMA_MinCycleTime;  // 65
-   UWORD       id_MWDMA_DefCycleTime;  // 66
-   UWORD       id_PIO_MinCycleTime;    // 67
-   UWORD       id_PIO_MinCycleTimeIORDY; // 68
-   UWORD       pad8[6];                // 69-74
-   UWORD       id_QueueDepth;          // 75
-   UWORD       pad9[4];                // 76-79
-   UWORD       id_SCSIVersion;          // 80
-   UWORD       id_SCSIRevision;         // 81
-   UWORD       id_Commands1;           // 82
-   UWORD       id_Commands2;           // 83
-   UWORD       id_Commands3;           // 84
-   UWORD       id_Commands4;           // 85
-   UWORD       id_Commands5;           // 86
-   UWORD       id_Commands6;           // 87
-   UWORD       id_UDMASupport;         // 88
-   UWORD       id_SecurityEraseTime;   // 89
-   UWORD       id_ESecurityEraseTime;  // 90
-   UWORD       id_CurrentAdvPowerMode; // 91
-   UWORD       id_MasterPwdRevision;   // 92
-   UWORD       id_HWResetResult;       // 93
-   UWORD       id_AcousticManagement;  // 94
-   UWORD       id_StreamMinimunReqSize;// 95
-   UWORD       id_StreamingTimeDMA;    // 96
-   UWORD       id_StreamingLatency;    // 97
-   ULONG       id_StreamingGranularity; // 98-99
-   UQUAD       id_LBA48Sectors;        // 100-103
-   UWORD       id_StreamingTimePIO;    // 104
-   UWORD       pad10;                  // 105
-   UWORD       id_PhysSectorSize;      // 106
-   UWORD       pad11;                  // 107
-   UQUAD       id_UniqueIDi[2];        // 108-115
-   UWORD       pad12;                  // 116
-   ULONG       id_WordsPerLogicalSector; // 117-118
-   UWORD       pad13[8];               // 119-126
-   UWORD       id_RemMediaStatusNotificationFeatures; // 127
-   UWORD       id_SecurityStatus;      // 128
-   UWORD       pad14[40];              // 129 - 168
-   UWORD       id_DSManagement;        // 169
-   UWORD       pad15[86];              // 170 - 256
-} __attribute__((packed));
-
-typedef struct
+struct scsi_Command
 {
-   UBYTE command;       // current SCSI command
-   UBYTE feature;       // FF to indicate no feature
-   UBYTE secmul;        // for read multiple - multiplier. default 1
-   UBYTE pad;
-   UQUAD blk;
-   ULONG sectors;
-   APTR  buffer;
-   ULONG length;
-   ULONG actual;
-
-   enum
-   {
-      CM_NoData,
-      CM_PIORead,
-      CM_PIOWrite,
-      CM_DMARead,
-      CM_DMAWrite
-   } method;
-   enum
-   {
-      CT_NoBlock,
-      CT_CHS,
-      CT_LBA28,
-      CT_LBA48,
-   } type;
-} scsi_CommandBlock;
-
-struct DaemonIO
-{
-    struct MinNode link;
-    struct IOStdReq req;
+    struct SCSI_Command         cmd;
+    UBYTE                       retries;
 };
 
-/*
-   Unit structure describing given device on the bus. It contains all the
-   necessary information unit/device may need.
-   */
 struct scsi_Unit
 {
-   struct Unit         su_Unit;        /* exec's unit */
-   struct DriveIdent  *su_Drive;       /* Drive Ident after IDENTIFY command */
-   struct scsi_Bus     *su_Bus;         /* Bus on which this unit is */
-   struct IOStdReq    *DaemonReq;      /* Disk change monitoring request */
+    struct Unit                 su_Unit;
+    struct scsi_Bus            *su_Bus;
+    struct IOStdReq            *DaemonReq;
 
-   ULONG               su_XferModes;   /* available transfer modes */
-   ULONG               su_UseModes;    /* Used transfer modes */
+    UBYTE                       su_Target;
+    UBYTE                       su_Lun;
+    UBYTE                       su_DeviceType;
+    UBYTE                       su_Flags;
+    UBYTE                       su_SenseKey;
+    UBYTE                       su_ASC;
+    UBYTE                       su_ASCQ;
+    UBYTE                       su_SectorShift;
 
-   ULONG               su_Capacity;    /* Highest sector accessible through LBA28 */
-   UQUAD               su_Capacity48;  /* Highest sector accessible through LBA48 */
-   ULONG               su_Cylinders;
-   UBYTE               su_Heads;
-   UBYTE               su_Sectors;
-   UBYTE               su_Model[41];
-   UBYTE               su_FirmwareRev[9];
-   UBYTE               su_SerialNumber[21];
+    ULONG                       su_BlockSize;
+    UQUAD                       su_Capacity;
+    UQUAD                       su_Capacity48;
+    ULONG                       su_XferModes;
+    ULONG                       su_UseModes;
+    ULONG                       su_ChangeNum;
+    ULONG                       su_Cylinders;
+    UBYTE                       su_Heads;
+    UBYTE                       su_Sectors;
 
-   /*
-      Here are stored pointers to functions responsible for handling this
-      device. They are set during device initialization and point to most
-      effective functions for this particular unit. Read/Write may be done
-      in PIO mode reading single sectors, using multisector PIO, or
-      multiword DMA.
-      */
-   BYTE                (*su_Read32    )(struct scsi_Unit *, ULONG, ULONG, APTR, ULONG *);
-   BYTE                (*su_Write32   )(struct scsi_Unit *, ULONG, ULONG, APTR, ULONG *);
-   BYTE                (*su_Read64    )(struct scsi_Unit *, UQUAD, ULONG, APTR, ULONG *);
-   BYTE                (*su_Write64   )(struct scsi_Unit *, UQUAD, ULONG, APTR, ULONG *);
-   BYTE                (*su_Eject     )(struct scsi_Unit *);
-   BYTE                (*su_DirectSCSI)(struct scsi_Unit *, struct SCSICmd*);
-   BYTE                (*su_Identify  )(struct scsi_Unit *);
-   VOID                (*su_ins       )(APTR, APTR, ULONG);
-   VOID                (*su_outs      )(APTR, APTR, ULONG);
-   void                *pioInterface;  /* PIO interface object, cached for performance */
+    UBYTE                       su_Inquiry[96];
+    struct DriveIdent          *su_Drive;
 
-   ULONG               su_UnitNum;     /* Unit number as coded by device */
-   ULONG               su_Flags;       /* Unit flags, see below */
-   ULONG               su_ChangeNum;   /* Number of disc changes */
+    BYTE                      (*su_Read32)(struct scsi_Unit *, ULONG, ULONG, APTR, ULONG *);
+    BYTE                      (*su_Write32)(struct scsi_Unit *, ULONG, ULONG, APTR, ULONG *);
+    BYTE                      (*su_Read64)(struct scsi_Unit *, UQUAD, ULONG, APTR, ULONG *);
+    BYTE                      (*su_Write64)(struct scsi_Unit *, UQUAD, ULONG, APTR, ULONG *);
+    BYTE                      (*su_SynchronizeCache)(struct scsi_Unit *);
+    BYTE                      (*su_DirectSCSI)(struct scsi_Unit *, struct SCSICmd *);
 
-   struct Interrupt   *su_RemoveInt;   /* Raise this interrupt on a disc change */
-   struct List         su_SoftList;    /* Raise even more interrupts from this list on disc change */
+    ULONG                       su_UnitNum;
+    ULONG                       su_InternalFlags;
 
-   UBYTE               su_SectorShift; /* Sector shift. 9 here is 512 bytes sector */
-   UBYTE               su_DevMask;     /* device mask used to simplify device number coding */
-   UBYTE               su_SenseKey;    /* Sense key from ATAPI devices */
-   UBYTE               su_DevType;
-
-   /******* PIO IO ********/
-   APTR                su_cmd_data;
-   ULONG               su_cmd_length;
-   ULONG               su_cmd_total;
-   ULONG               su_cmd_error;
+    struct Interrupt           *su_RemoveInt;
+    struct List                 su_SoftList;
 };
 
-#define AF_XFER_DMA_MASK (AF_XFER_MDMA(0)|AF_XFER_MDMA(1)|AF_XFER_MDMA(2)|                 \
-                          AF_XFER_UDMA(0)|AF_XFER_UDMA(1)|AF_XFER_UDMA(2)|AF_XFER_UDMA(3)| \
-                          AF_XFER_UDMA(4)|AF_XFER_UDMA(5)|AF_XFER_UDMA(6))
+#define SCSI_UNIT_PRESENT       (1 << 0)
+#define SCSI_UNIT_REMOVABLE     (1 << 1)
+#define SCSI_UNIT_TAGGED        (1 << 2)
+#define SCSI_UNIT_SYNCHRONOUS   (1 << 3)
 
-/* Unit internal flags */
-#define AB_DiscPresent          30     /* disc now in drive */
-#define AB_DiscChanged          29     /* disc changed */
-#define AB_Removable            28     /* media removable */
-#define AB_DMA                  27     /* DMA is in use */
-#define AB_CHSOnly              26     /* only supports CHS commands */
+#define AF_DiscPresent          SCSI_UF_PRESENT
+#define AF_Removable            SCSI_UF_REMOVABLE
+#define AF_DiscChanged          SCSI_UF_CHANGED
+#define AF_DMA                  0
+#define AF_CHSOnly              0
+#define AF_XFER_PACKET          (1 << 0)
 
-#define AF_DiscPresent          (1 << AB_DiscPresent)
-#define AF_DiscChanged          (1 << AB_DiscChanged)
-#define AF_Removable            (1 << AB_Removable)
-#define AF_DMA                  (1 << AB_DMA)
-#define AF_CHSOnly              (1 << AB_CHSOnly)
+#define su_DevType              su_DeviceType
+
+struct DriveIdent
+{
+   UWORD       id_General;
+   UWORD       id_OldCylinders;
+   UWORD       id_SpecificConfig;
+   UWORD       id_OldHeads;
+   UWORD       pad1[2];
+   UWORD       id_OldSectors;
+   UWORD       pad2[3];
+   UBYTE       id_SerialNumber[20];
+   UWORD       pad3;
+   ULONG       id_BufSize;
+   UBYTE       id_FirmwareRev[8];
+   UBYTE       id_Model[40];
+   UWORD       id_RWMultipleSize;
+   union {
+      UWORD    id_io32;
+      UWORD    id_Trusted;
+   };
+   UWORD       id_Capabilities;
+   UWORD       id_OldCaps;
+   UWORD       id_OldPIO;
+   UWORD       id_OldDMA;
+   UWORD       id_ConfigAvailable;
+   UWORD       id_OldLCylinders;
+   UWORD       id_OldLHeads;
+   UWORD       id_OldLSectors;
+   UWORD       pad6[2];
+   UWORD       id_RWMultipleTrans;
+   ULONG       id_LBASectors;
+   UWORD       id_DMADir;
+   UWORD       id_MWDMASupport;
+   UWORD       id_PIOSupport;
+   UWORD       id_MWDMA_MinCycleTime;
+   UWORD       id_MWDMA_DefCycleTime;
+   UWORD       id_PIO_MinCycleTime;
+   UWORD       id_PIO_MinCycleTimeIORDY;
+   UWORD       pad8[6];
+   UWORD       id_QueueDepth;
+   UWORD       pad9[4];
+   UWORD       id_SCSIVersion;
+   UWORD       id_SCSIRevision;
+   UWORD       id_Commands1;
+   UWORD       id_Commands2;
+   UWORD       id_Commands3;
+   UWORD       id_Commands4;
+   UWORD       id_Commands5;
+   UWORD       id_Commands6;
+   UWORD       id_UDMASupport;
+   UWORD       id_SecurityEraseTime;
+   UWORD       id_ESecurityEraseTime;
+   UWORD       id_CurrentAdvPowerMode;
+   UWORD       id_MasterPwdRevision;
+   UWORD       id_HWResetResult;
+   UWORD       id_AcousticManagement;
+   UWORD       id_StreamMinimunReqSize;
+   UWORD       id_StreamingTimeDMA;
+   UWORD       id_StreamingLatency;
+   ULONG       id_StreamingGranularity;
+   UQUAD       id_LBA48Sectors;
+   UWORD       id_StreamingTimePIO;
+   UWORD       pad10;
+   UWORD       id_PhysSectorSize;
+   UWORD       pad11;
+   UQUAD       id_UniqueIDi[2];
+   UWORD       pad12;
+   ULONG       id_WordsPerLogicalSector;
+   UWORD       pad13[8];
+   UWORD       id_RemMediaStatusNotificationFeatures;
+   UWORD       id_SecurityStatus;
+   UWORD       pad14[40];
+   UWORD       id_DSManagement;
+   UWORD       pad15[86];
+} __attribute__((packed));
 
 #define Unit(io) ((struct scsi_Unit *)(io)->io_Unit)
 #define IOStdReq(io) ((struct IOStdReq *)io)
-
-/* Function prototypes */
 
 BOOL Hidd_SCSIBus_Start(OOP_Object *o, struct scsiBase *SCSIBase);
 AROS_UFP3(BOOL, Hidd_SCSIBus_Open,
@@ -386,25 +285,19 @@ AROS_UFP3(BOOL, Hidd_SCSIBus_Open,
           AROS_UFPA(IPTR, reqUnit, A1));
 
 void scsi_InitBus(struct scsi_Bus *);
-int atapi_TestUnitOK(struct scsi_Unit *);
 BOOL scsi_setup_unit(struct scsi_Bus *bus, struct scsi_Unit *unit);
-void scsi_init_unit(struct scsi_Bus *bus, struct scsi_Unit *unit, UBYTE u);
+void scsi_init_unit(struct scsi_Bus *bus, struct scsi_Unit *unit, UBYTE target, UBYTE lun);
 
 BOOL scsi_RegisterVolume(ULONG StartCyl, ULONG EndCyl, struct scsi_Unit *unit);
 void BusTaskCode(struct scsi_Bus *bus, struct scsiBase *SCSIBase);
 void DaemonCode(struct scsiBase *LIBBASE);
 
-#define ATAPI_SS_EJECT  0x02
-#define ATAPI_SS_LOAD   0x03
-
-struct atapi_StartStop
-{
-    UBYTE   command;
-    UBYTE   immediate;
-    UBYTE   pad1[2];
-    UBYTE   flags;
-    UBYTE   pad2[7];
-};
+BYTE scsi_PerformCommand(struct scsi_Unit *unit, struct SCSI_Command *cmd);
+BYTE scsi_Inquiry(struct scsi_Unit *unit, UBYTE page, APTR buffer, ULONG length);
+BYTE scsi_ReadCapacity(struct scsi_Unit *unit, UBYTE serviceAction, APTR buffer, ULONG length);
+BYTE scsi_TestUnitReady(struct scsi_Unit *unit);
+BYTE scsi_RequestSense(struct scsi_Unit *unit, APTR buffer, ULONG length);
 
 #endif // _SCSI_H
+
 

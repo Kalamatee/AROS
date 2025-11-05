@@ -1,100 +1,39 @@
-/*
-    Copyright (C) 2019, The AROS Development Team. All rights reserved.
+#ifndef SCSI_BUS_HELPERS_H
+#define SCSI_BUS_HELPERS_H
 
-    Desc: private inline stubs for calling DMA and PIO vectors
+/*
+    Helper inline wrappers for accessing the SCSI host interface.
 */
 
-static inline VOID PIO_Out(struct scsi_Bus* bus, UBYTE val, UWORD offset)
+static inline BOOL SCSI_BusQueueCommand(struct scsi_Bus *bus, struct SCSI_Command *cmd)
 {
-    register void *obj = bus->pioInterface;
-    struct SCSI_BusInterface *vec = obj - sizeof(struct SCSI_BusInterface);
+    if (!bus->sb_Interface || !bus->sb_Interface->queue)
+        return FALSE;
 
-    vec->scsi_out(obj, val, offset);
+    return bus->sb_Interface->queue(bus->sb_InterfaceData, cmd);
 }
 
-static inline UBYTE PIO_In(struct scsi_Bus* bus, UWORD offset)
+static inline BOOL SCSI_BusReset(struct scsi_Bus *bus, ULONG flags)
 {
-    register void *obj = bus->pioInterface;
-    struct SCSI_BusInterface *vec = obj - sizeof(struct SCSI_BusInterface);
+    if (!bus->sb_Interface || !bus->sb_Interface->reset)
+        return FALSE;
 
-    return vec->scsi_in(obj, offset);
+    return bus->sb_Interface->reset(bus->sb_InterfaceData, flags);
 }
 
-static inline VOID PIO_OutAlt(struct scsi_Bus* bus, UBYTE val, UWORD offset)
+static inline BOOL SCSI_BusConfigureTarget(struct scsi_Bus *bus, UBYTE target,
+                                           const struct SCSI_TargetSettings *settings)
 {
-    register void *obj = bus->pioInterface;
-    struct SCSI_BusInterface *vec = obj - sizeof(struct SCSI_BusInterface);
+    if (!bus->sb_Interface || !bus->sb_Interface->set_target)
+        return FALSE;
 
-    vec->scsi_out_alt(obj, val, offset);
+    return bus->sb_Interface->set_target(bus->sb_InterfaceData, target, settings);
 }
 
-static inline UBYTE PIO_InAlt(struct scsi_Bus* bus, UWORD offset)
+static inline VOID SCSI_BusPoll(struct scsi_Bus *bus)
 {
-    register void *obj = bus->pioInterface;
-    struct SCSI_BusInterface *vec = obj - sizeof(struct SCSI_BusInterface);
-
-    return vec->scsi_in_alt(obj, offset);
+    if (bus->sb_Interface && bus->sb_Interface->poll)
+        bus->sb_Interface->poll(bus->sb_InterfaceData);
 }
 
-static inline BOOL DMA_Setup(struct scsi_Bus *bus, APTR buffer, IPTR size, BOOL read)
-{
-    register void *obj = bus->dmaInterface;
-    struct SCSI_DMAInterface *vec = obj - sizeof(struct SCSI_DMAInterface);
-    
-    return vec->dma_Prepare(obj, buffer, size, read);
-}
-
-static inline void DMA_Start(struct scsi_Bus *bus)
-{
-    register void *obj = bus->dmaInterface;
-    struct SCSI_DMAInterface *vec = obj - sizeof(struct SCSI_DMAInterface);
-
-    vec->dma_Start(obj);
-}
-
-static inline void DMA_End(struct scsi_Bus *bus, APTR addr, IPTR len, BOOL read)
-{
-    register void *obj = bus->dmaInterface;
-    struct SCSI_DMAInterface *vec = obj - sizeof(struct SCSI_DMAInterface);
-    
-    vec->dma_End(obj, addr, len, read);
-}
-
-static inline ULONG DMA_GetResult(struct scsi_Bus *bus)
-{
-    register void *obj = bus->dmaInterface;
-    struct SCSI_DMAInterface *vec = obj - sizeof(struct SCSI_DMAInterface);
-    
-    return vec->dma_Result(obj);
-}
-
-/* Convert data instance pointer back to OOP object pointer */
-#define OOP_OBJECT(cl, data) (((void *)data) - cl->InstOffset)
-
-static inline void Unit_Enable32Bit(struct scsi_Unit *unit)
-{
-    struct scsi_Bus *bus = unit->su_Bus;
-
-    unit->su_UseModes |= AF_XFER_PIO32;
-    unit->su_ins       = bus->pioVectors->scsi_insl;
-    unit->su_outs      = bus->pioVectors->scsi_outsl;
-}
-
-static inline void Unit_Disable32Bit(struct scsi_Unit *unit)
-{
-    struct scsi_Bus *bus = unit->su_Bus;
-
-    unit->su_UseModes &= ~AF_XFER_PIO32;
-    unit->su_ins       = bus->pioVectors->scsi_insw;
-    unit->su_outs      = bus->pioVectors->scsi_outsw;
-}
-
-static inline void Unit_OutS(struct scsi_Unit *unit, APTR data, ULONG length)
-{
-    unit->su_outs(unit->pioInterface, data, length);
-}
-
-static inline void Unit_InS(struct scsi_Unit *unit, APTR data, ULONG length)
-{
-    unit->su_ins(unit->pioInterface, data, length);
-}
+#endif /* SCSI_BUS_HELPERS_H */
