@@ -1495,6 +1495,15 @@ void xhciDestroyEndpoint(struct IOUsbHWReq *ioreq)
         return;
 
     xhciFreeEndpointContext(hc, devCtx, epid, TRUE, timerreq);
+    if (devCtx->dc_EPContexts[epid]) {
+        if (devCtx->dc_EPContexts[epid]->ectx_TimerReq ||
+            devCtx->dc_EPContexts[epid]->ectx_TimerPort) {
+            xhciCloseTaskTimer(&devCtx->dc_EPContexts[epid]->ectx_TimerPort,
+                               &devCtx->dc_EPContexts[epid]->ectx_TimerReq);
+        }
+        FreeMem(devCtx->dc_EPContexts[epid], sizeof(*devCtx->dc_EPContexts[epid]));
+        devCtx->dc_EPContexts[epid] = NULL;
+    }
 
     ioreq->iouh_DriverPrivate2 = NULL;
 
@@ -3090,15 +3099,6 @@ static void xhciFreeEndpointContext(struct PCIController *hc,
         devCtx->dc_EPAllocs[epid].dmaa_DMA = NULL;
     }
 
-    if (devCtx->dc_EPContexts[epid]) {
-        if (devCtx->dc_EPContexts[epid]->ectx_TimerReq ||
-            devCtx->dc_EPContexts[epid]->ectx_TimerPort) {
-            xhciCloseTaskTimer(&devCtx->dc_EPContexts[epid]->ectx_TimerPort,
-                               &devCtx->dc_EPContexts[epid]->ectx_TimerReq);
-        }
-        FreeMem(devCtx->dc_EPContexts[epid], sizeof(*devCtx->dc_EPContexts[epid]));
-        devCtx->dc_EPContexts[epid] = NULL;
-    }
 }
 
 void xhciFreeDeviceCtx(struct PCIController *hc,
@@ -3124,8 +3124,18 @@ void xhciFreeDeviceCtx(struct PCIController *hc,
     if (devCtx->dc_SlotID)
         xhciSetPointer(hc, ((volatile struct xhci_address *)xhcic->xhc_DCBAAp)[devCtx->dc_SlotID], 0);
 
-    for (ULONG epid = 0; epid < MAX_DEVENDPOINTS; epid++)
+    for (ULONG epid = 0; epid < MAX_DEVENDPOINTS; epid++) {
         xhciFreeEndpointContext(hc, devCtx, epid, FALSE, timerreq);
+        if (devCtx->dc_EPContexts[epid]) {
+            if (devCtx->dc_EPContexts[epid]->ectx_TimerReq ||
+                devCtx->dc_EPContexts[epid]->ectx_TimerPort) {
+                xhciCloseTaskTimer(&devCtx->dc_EPContexts[epid]->ectx_TimerPort,
+                                   &devCtx->dc_EPContexts[epid]->ectx_TimerReq);
+            }
+            FreeMem(devCtx->dc_EPContexts[epid], sizeof(*devCtx->dc_EPContexts[epid]));
+            devCtx->dc_EPContexts[epid] = NULL;
+        }
+    }
 
     if (devCtx->dc_IN.dmaa_Entry.me_Un.meu_Addr) {
         FREEPCIMEM(hc, hc->hc_PCIDriverObject, devCtx->dc_IN.dmaa_Entry.me_Un.meu_Addr);
