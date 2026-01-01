@@ -150,9 +150,9 @@ static BOOL xhciQueueControlStages(struct PCIController *hc, struct IOUsbHWReq *
                     (ULONG)( setupdata_inline        & 0xffffffffUL),
                     (unsigned)sizeof(ioreq->iouh_SetupData));
     /* SETUP stage */
-    queued = xhciQueueTRB(hc, epring, setupdata_inline,
-                          sizeof(ioreq->iouh_SetupData),
-                          sf);
+    queued = xhciQueueTRB_IO(hc, epring, setupdata_inline,
+                             sizeof(ioreq->iouh_SetupData),
+                             sf, &ioreq->iouh_Req);
     pciusbXHCIDebugV("xHCI",
                     "xhciQueueTRB (SETUP) -> queued=%d\n",
                     (int)queued);
@@ -161,7 +161,6 @@ static BOOL xhciQueueControlStages(struct PCIController *hc, struct IOUsbHWReq *
         return FALSE;
 
     driprivate->dpSTRB = queued;
-    epring->ringio[queued] = &ioreq->iouh_Req;
 
     /* DATA stage (if any) */
     if (has_data) {
@@ -215,8 +214,8 @@ static BOOL xhciQueueControlStages(struct PCIController *hc, struct IOUsbHWReq *
         pciusbXHCIDebugTRBV("xHCI",
                         "Queueing STATUS TRB\n");
         ULONG stf = xhciTDStatusFlags(status_tdflags);
-        queued = xhciQueueTRB(hc, epring, 0, 0,
-                              stf);
+        queued = xhciQueueTRB_IO(hc, epring, 0, 0,
+                                 stf, &ioreq->iouh_Req);
         pciusbXHCIDebugTRBV("xHCI",
                         "xhciQueueTRB (STATUS) -> queued=%d\n",
                         (int)queued);
@@ -224,7 +223,6 @@ static BOOL xhciQueueControlStages(struct PCIController *hc, struct IOUsbHWReq *
 
     if (queued != -1) {
         driprivate->dpSttTRB = queued;
-        epring->ringio[queued] = &ioreq->iouh_Req;
     }
 
     return queued != -1;
