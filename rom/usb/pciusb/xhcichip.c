@@ -485,6 +485,12 @@ static inline UBYTE xhciEndpointState(volatile struct xhci_ep *epctx)
     return (UBYTE)(AROS_LE2LONG(epctx->ctx[0]) & 0x7U);
 }
 
+struct xhci_clearhalt_work {
+    struct Node node;
+    struct pciusbXHCIDevice *devCtx;
+    UBYTE epid;
+};
+
 static BOOL xhciResetEndpointRing(struct PCIController *hc,
                                   struct pciusbXHCIDevice *devCtx,
                                   UBYTE epid,
@@ -1871,41 +1877,23 @@ static inline void xhciIOErrfromCC(struct IOUsbHWReq *ioreq, ULONG cc)
 }
 
 static void xhciHandleClearFeatureEndpointHalt(struct PCIController *hc,
-                                               struct IOUsbHWReq *ioreq,
                                                struct pciusbXHCIDevice *devCtx,
+                                               UBYTE epid,
                                                struct timerequest *timerreq)
 {
-    if (!hc || !ioreq || !devCtx)
-        return;
-
-    if (ioreq->iouh_Req.io_Command != UHCMD_CONTROLXFER)
-        return;
-
-    if (ioreq->iouh_Req.io_Error != UHIOERR_NO_ERROR)
-        return;
-
-    const UBYTE bmRequestType = ioreq->iouh_SetupData.bmRequestType;
-    const UBYTE bRequest = ioreq->iouh_SetupData.bRequest;
-    const UWORD wValue = AROS_LE2WORD(ioreq->iouh_SetupData.wValue);
-    const UWORD wIndex = AROS_LE2WORD(ioreq->iouh_SetupData.wIndex);
-
-    if ((bmRequestType != (URTF_STANDARD | URTF_ENDPOINT)) ||
-        (bRequest != USR_CLEAR_FEATURE) ||
-        (wValue != UFS_ENDPOINT_HALT))
+    if (!hc || !devCtx)
         return;
 
     if (devCtx == XHCI_ROOT_HUB_HANDLE)
         return;
 
-    const UBYTE epid = xhciEndpointIDFromIndex(wIndex);
     if (epid == 0 || epid >= MAX_DEVENDPOINTS)
         return;
 
     pciusbXHCIDebugV("xHCI",
-        DEBUGCOLOR_SET "CLEAR_FEATURE(ENDPOINT_HALT) completed: dev=%u wIndex=0x%04x -> EPID=%u"
+        DEBUGCOLOR_SET "CLEAR_FEATURE(ENDPOINT_HALT) recovery: dev=%u EPID=%u"
         DEBUGCOLOR_RESET" \n",
         (unsigned)devCtx->dc_DevAddr,
-        (unsigned)wIndex,
         (unsigned)epid);
 
     if (!devCtx->dc_SlotCtx.dmaa_Ptr)
@@ -1943,6 +1931,50 @@ static void xhciHandleClearFeatureEndpointHalt(struct PCIController *hc,
         (unsigned)devCtx->dc_SlotID, (unsigned)epid, (long)cc);
     if (cc == TRB_CC_SUCCESS)
         xhciRingDoorbell(hc, devCtx->dc_SlotID, epid);
+}
+
+static void xhciQueueClearHaltWork(struct PCIController *hc,
+                                   struct pciusbXHCIDevice *devCtx,
+                                   UBYTE epid)
+{
+    struct XhciHCPrivate *xhcic = xhciGetHCPrivate(hc);
+    struct xhci_clearhalt_work *work;
+
+    if (!xhcic || !devCtx)
+        return;
+
+    work = AllocMem(sizeof(*work), MEMF_ANY | MEMF_CLEAR);
+    if (!work)
+        return;
+
+    work->devCtx = devCtx;
+    work->epid = epid;
+
+    Disable();
+    AddTail(&xhcic->xhc_ClearHaltQueue, &work->node);
+    Enable();
+}
+
+void xhciProcessClearHaltQueue(struct PCIController *hc,
+                               struct timerequest *timerreq)
+{
+    struct XhciHCPrivate *xhcic = xhciGetHCPrivate(hc);
+    struct xhci_clearhalt_work *work;
+
+    if (!xhcic)
+        return;
+
+    for (;;) {
+        Disable();
+        work = (struct xhci_clearhalt_work *)RemHead(&xhcic->xhc_ClearHaltQueue);
+        Enable();
+
+        if (!work)
+            break;
+
+        xhciHandleClearFeatureEndpointHalt(hc, work->devCtx, work->epid, timerreq);
+        FreeMem(work, sizeof(*work));
+    }
 }
 
 void xhciHandleFinishedTDs(struct PCIController *hc, struct timerequest *timerreq)
@@ -2146,11 +2178,26 @@ void xhciHandleFinishedTDs(struct PCIController *hc, struct timerequest *timerre
             }
 
             if (transactiondone) {
-                struct pciusbXHCIDevice *clear_dev = driprivate ? driprivate->dpDevice : NULL;
+                if ((!ioreq->iouh_Req.io_Error) &&
+                    (ioreq->iouh_Req.io_Command == UHCMD_CONTROLXFER)) {
+                    const UBYTE bmRequestType = ioreq->iouh_SetupData.bmRequestType;
+                    const UBYTE bRequest = ioreq->iouh_SetupData.bRequest;
+                    const UWORD wValue = AROS_LE2WORD(ioreq->iouh_SetupData.wValue);
+                    const UWORD wIndex = AROS_LE2WORD(ioreq->iouh_SetupData.wIndex);
+
+                    if ((bmRequestType == (URTF_STANDARD | URTF_ENDPOINT)) &&
+                        (bRequest == USR_CLEAR_FEATURE) &&
+                        (wValue == UFS_ENDPOINT_HALT) &&
+                        driprivate &&
+                        driprivate->dpDevice) {
+                        const UBYTE epid = xhciEndpointIDFromIndex(wIndex);
+                        if (epid != 0 && driprivate->dpDevice != XHCI_ROOT_HUB_HANDLE)
+                            xhciQueueClearHaltWork(hc, driprivate->dpDevice, epid);
+                    }
+                }
                 xhciFreeAsyncContext(hc, unit, ioreq);
                 if ((!ioreq->iouh_Req.io_Error) &&
                     (ioreq->iouh_Req.io_Command == UHCMD_CONTROLXFER)) {
-                    xhciHandleClearFeatureEndpointHalt(hc, ioreq, clear_dev, timerreq);
                     uhwCheckSpecialCtrlTransfers(hc, ioreq);
                 }
                 ReplyMsg(&ioreq->iouh_Req.io_Message);
@@ -2995,6 +3042,7 @@ BOOL xhciInit(struct PCIController *hc, struct PCIUnit *hu,
         return FALSE;
     }
     hc->hc_CPrivate = xhcic;
+    NewList(&xhcic->xhc_ClearHaltQueue);
 
     hc->hc_CompleteInt.is_Node.ln_Type = NT_INTERRUPT;
     hc->hc_CompleteInt.is_Node.ln_Name = "XHCI CompleteInt";

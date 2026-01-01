@@ -171,6 +171,7 @@ void xhciScheduleAsyncTDs(struct PCIController *hc, struct List *txlist, ULONG t
 void xhciScheduleIntTDs(struct PCIController *hc);
 void xhciScheduleIsoTDs(struct PCIController *hc);
 void xhciHandleFinishedTDs(struct PCIController *hc, struct timerequest *timerreq);
+void xhciProcessClearHaltQueue(struct PCIController *hc, struct timerequest *timerreq);
 void xhciFreeAsyncContext(struct PCIController *hc, struct PCIUnit *unit, struct IOUsbHWReq *ioreq);
 void xhciFreePeriodicContext(struct PCIController *hc, struct PCIUnit *unit, struct IOUsbHWReq *ioreq);
 void xhciFinishRequest(struct PCIController *hc, struct PCIUnit *unit, struct IOUsbHWReq *ioreq);

@@ -120,6 +120,7 @@ struct XhciHCPrivate
     struct Task                        *xhc_ReadySigTask;
     struct XhciPortTaskPrivate         xhc_PortTask;
     struct XhciEventTaskPrivate        xhc_EventTask;
+    struct List                        xhc_ClearHaltQueue;
     struct pciusbXHCIDevice            *xhc_Devices[USB_DEV_MAX];
     volatile struct pciusbXHCITRBParams xhc_CmdResults[USB_DEV_MAX];
     UBYTE                               xhc_PortProtocol[MAX_ROOT_PORTS];

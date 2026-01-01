@@ -64,6 +64,9 @@ WORD xhciPrepareTransfer(struct IOUsbHWReq *ioreq,
     const UWORD wValue        = AROS_LE2WORD(ioreq->iouh_SetupData.wValue);
     const UWORD wIndex        = AROS_LE2WORD(ioreq->iouh_SetupData.wIndex);
 
+    if (hc)
+        xhciProcessClearHaltQueue(hc, unit->hu_TimerReq);
+
     xhciDebugControlTransfer(ioreq);
 
     if (!hc) {
