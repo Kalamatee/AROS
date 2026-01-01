@@ -244,7 +244,7 @@ struct RTIsoNode
     struct PTDNode    *rtn_PTDs[2];
     struct IOUsbHWBufferReq rtn_BufferReq;
     struct IOUsbHWReq  rtn_IOReq;
-    UWORD              rtn_Dummy;
+    UWORD              rtn_Flags;
 };
 
 
