@@ -1872,10 +1872,10 @@ static inline void xhciIOErrfromCC(struct IOUsbHWReq *ioreq, ULONG cc)
 
 static void xhciHandleClearFeatureEndpointHalt(struct PCIController *hc,
                                                struct IOUsbHWReq *ioreq,
-                                               struct pciusbXHCIIODevPrivate *driprivate,
+                                               struct pciusbXHCIDevice *devCtx,
                                                struct timerequest *timerreq)
 {
-    if (!hc || !ioreq || !driprivate)
+    if (!hc || !ioreq || !devCtx)
         return;
 
     if (ioreq->iouh_Req.io_Command != UHCMD_CONTROLXFER)
@@ -1894,8 +1894,7 @@ static void xhciHandleClearFeatureEndpointHalt(struct PCIController *hc,
         (wValue != UFS_ENDPOINT_HALT))
         return;
 
-    struct pciusbXHCIDevice *devCtx = driprivate->dpDevice;
-    if (!devCtx || devCtx == XHCI_ROOT_HUB_HANDLE)
+    if (devCtx == XHCI_ROOT_HUB_HANDLE)
         return;
 
     const UBYTE epid = xhciEndpointIDFromIndex(wIndex);
@@ -2147,13 +2146,11 @@ void xhciHandleFinishedTDs(struct PCIController *hc, struct timerequest *timerre
             }
 
             if (transactiondone) {
-                if ((!ioreq->iouh_Req.io_Error) &&
-                    (ioreq->iouh_Req.io_Command == UHCMD_CONTROLXFER)) {
-                    xhciHandleClearFeatureEndpointHalt(hc, ioreq, driprivate, timerreq);
-                }
+                struct pciusbXHCIDevice *clear_dev = driprivate ? driprivate->dpDevice : NULL;
                 xhciFreeAsyncContext(hc, unit, ioreq);
                 if ((!ioreq->iouh_Req.io_Error) &&
                     (ioreq->iouh_Req.io_Command == UHCMD_CONTROLXFER)) {
+                    xhciHandleClearFeatureEndpointHalt(hc, ioreq, clear_dev, timerreq);
                     uhwCheckSpecialCtrlTransfers(hc, ioreq);
                 }
                 ReplyMsg(&ioreq->iouh_Req.io_Message);
