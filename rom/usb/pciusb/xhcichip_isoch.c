@@ -65,7 +65,8 @@ void xhciScheduleIsoTDs(struct PCIController *hc)
     ForeachNodeSafe(&hc->hc_IsoXFerQueue, ioreq, ionext) {
         devadrep = xhciDevEPKey(ioreq);
 
-        if(unit->hu_DevBusyReq[devadrep]) {
+        if (unit->hu_DevBusyReq[devadrep] &&
+            unit->hu_DevBusyReq[devadrep]->iouh_Req.io_Command != UHCMD_ISOXFER) {
             pciusbWarn("xHCI", "DevEP %02lx in use!\n", devadrep);
             continue;
         }
@@ -79,6 +80,8 @@ void xhciScheduleIsoTDs(struct PCIController *hc)
             pciusbError("xHCI",
                         DEBUGWARNCOLOR_SET "xHCI: Missing prepared ISO transfer context for Dev=%u EP=%u" DEBUGCOLOR_RESET" \n",
                         ioreq->iouh_DevAddr, ioreq->iouh_Endpoint);
+            if (ptd)
+                ptd->ptd_Flags &= ~(PTDF_ACTIVE | PTDF_BUFFER_VALID | PTDF_QUEUED);
             Remove(&ioreq->iouh_Req.io_Message.mn_Node);
             ioreq->iouh_Req.io_Error = UHIOERR_HOSTERROR;
             ReplyMsg(&ioreq->iouh_Req.io_Message);
@@ -101,6 +104,8 @@ void xhciScheduleIsoTDs(struct PCIController *hc)
         trbflags |= TRBF_FLAG_FRAMEID(ioreq->iouh_Frame);
 
         Remove(&ioreq->iouh_Req.io_Message.mn_Node);
+        if (ptd)
+            ptd->ptd_Flags &= ~PTDF_QUEUED;
 
         BOOL txdone = FALSE;
         driprivate->dpSTRB = (UWORD)-1;
@@ -273,6 +278,7 @@ void xhciStartIsochIO(struct PCIController *hc, struct RTIsoNode *rtn)
     for (UWORD idx = 0; idx < rtn->rtn_PTDCount; idx++) {
         struct PTDNode *candidate = rtn->rtn_PTDs[idx];
         if (candidate && (candidate->ptd_Flags & PTDF_BUFFER_VALID) &&
+            !(candidate->ptd_Flags & PTDF_QUEUED) &&
             !(candidate->ptd_Flags & PTDF_ACTIVE)) {
             ptd = candidate;
             break;
@@ -304,6 +310,7 @@ void xhciStartIsochIO(struct PCIController *hc, struct RTIsoNode *rtn)
     }
 
     /* Queue it on the ISO path. */
+    ptd->ptd_Flags |= PTDF_QUEUED;
     AddTail(&hc->hc_IsoXFerQueue, (struct Node *)&ioreq->iouh_Req.io_Message.mn_Node);
     xhciScheduleIsoTDs(hc);
 }

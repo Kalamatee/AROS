@@ -82,6 +82,7 @@ struct PTDNode
 #define PTDF_ACTIVE             (1<<0)
 #define PTDF_BUFFER_VALID       (1<<1)
 #define PTDF_SITD               (1<<2)
+#define PTDF_QUEUED             (1<<3)
 
 #define PCIUSB_ISO_PTD_COUNT    8
 
