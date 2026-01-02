@@ -291,8 +291,7 @@ BOOL xhciActivateEndpointTransfer(struct PCIController *hc, struct PCIUnit *unit
 
     Disable();
     if ((ioreq->iouh_DriverPrivate1 = driprivate) != NULL) {
-        if (ioreq->iouh_Req.io_Command != UHCMD_ISOXFER)
-            unit->hu_DevBusyReq[devadrep] = ioreq;
+        unit->hu_DevBusyReq[devadrep] = ioreq;
 
         if (driprivate->dpDevice) {
             *epringOut = driprivate->dpDevice->dc_EPAllocs[driprivate->dpEPID].dmaa_Ptr;

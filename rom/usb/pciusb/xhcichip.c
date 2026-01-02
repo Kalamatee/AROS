@@ -2099,10 +2099,10 @@ void xhciFinishRequest(struct PCIController *hc, struct PCIUnit *unit, struct IO
     }
     devadrep = xhciDevEPKey(ioreq);
     pciusbXHCIDebugEPV("xHCI", DEBUGCOLOR_SET "%s: releasing DevEP %02lx" DEBUGCOLOR_RESET" \n", __func__, devadrep);
-    if (ioreq->iouh_Req.io_Command != UHCMD_ISOXFER) {
+    if (unit->hu_DevBusyReq[devadrep] == ioreq)
         unit->hu_DevBusyReq[devadrep] = NULL;
+    if (ioreq->iouh_Req.io_Command != UHCMD_ISOXFER)
         unit->hu_NakTimeoutFrame[devadrep] = 0;
-    }
 }
 
 static inline void xhciIOErrfromCC(struct IOUsbHWReq *ioreq, ULONG cc)
