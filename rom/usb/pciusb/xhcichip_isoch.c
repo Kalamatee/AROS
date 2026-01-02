@@ -263,6 +263,7 @@ WORD xhciQueueIsochIO(struct PCIController *hc, struct RTIsoNode *rtn)
 
     ptd->ptd_FrameIdx = bufreq->ubr_Frame;
     ptd->ptd_Flags |= PTDF_BUFFER_VALID;
+    rtn->rtn_BufferReq = *bufreq;
 
     return RC_OK;
 }
