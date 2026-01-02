@@ -60,6 +60,8 @@
 #define USB_DEV_MAX                     128
 #define USB_DEVEP_CNT                   (USB_DEV_MAX * MAX_DEVENDPOINTS)
 
+struct RTIsoNode;
+
 struct PTDNode
 {
     struct MinNode              ptd_Node;
@@ -72,6 +74,9 @@ struct PTDNode
     UWORD                       ptd_PktLength[8];
     UWORD                       ptd_Flags;
     struct PTDNode             *ptd_NextPTD;
+    struct IOUsbHWReq           ptd_IOReq;
+    struct IOUsbHWBufferReq     ptd_BufferReq;
+    struct RTIsoNode           *ptd_RTIsoNode;
 };
 
 #define PTDF_ACTIVE             (1<<0)
