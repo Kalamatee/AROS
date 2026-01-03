@@ -221,6 +221,8 @@ void NewSettings(char *name)
     globalprefs.ahigp_AntiClickTime    = 0;
     globalprefs.ahigp_ScaleMode        = AHI_SCALE_FIXED_0_DB;
 
+    LoadSoundDT41Prefs();
+
     UnitList = GetUnits(name);
     Units = List2Array((struct List *) UnitList);
 

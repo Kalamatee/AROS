@@ -30,6 +30,14 @@
 
 extern struct AHIGlobalPrefs globalprefs;
 
+struct SoundDT41Prefs {
+    BOOL has_prefs;
+    BOOL ahi_present;
+    BOOL force_ahimode;
+    BOOL has_ahimodeid;
+    ULONG ahimodeid;
+};
+
 BOOL Initialize(void);
 void CleanUp(void);
 
@@ -42,6 +50,10 @@ BOOL SaveSettings(char *, struct List *);
 BOOL WriteIcon(char *);
 void FreeList(struct List *);
 struct Node *GetNode(int, struct List *);
+BOOL LoadSoundDT41Prefs(void);
+const struct SoundDT41Prefs *GetSoundDT41Prefs(void);
+void SetSoundDT41UseMode(BOOL use_mode, ULONG mode_id);
+BOOL UpdateSoundDT41Prefs(BOOL save_to_envarc);
 
 BOOL PlaySound(struct AHIUnitPrefs *);
 
