@@ -32,6 +32,7 @@
 #include <proto/tiff.h>
 
 #include <tiffinline.h>
+#include <tiffio.h>
 
 #include <aros/symbolsets.h>
 
@@ -69,17 +70,21 @@ static void tiffConvert16to8(UWORD pi, UWORD sspp, ULONG pxfmt, ULONG width, ULO
     ULONG npixels = width * height;
     ULONG i;
 
-    D(bug("[tiff.datatype] %s(%04x, %04x, %08x, %u, %u, 0x%p, 0x%p)\n", __func__, pi, sspp, pxfmt, width, height, src, dst));
+    D(bug("[tiff.datatype] %s(%04x, %04x, %08x, %u, %u, 0x%p, 0x%p)
+", __func__, pi, sspp, pxfmt, width, height, src, dst));
 
     /* 1-sample (grayscale / palette) case */
-    if (sspp == 1) {
-        D(bug("[tiff.datatype] %s: greyscale/pallete\n", __func__));
+    if (sspp == 1 || sspp == 2) {
+        D(bug("[tiff.datatype] %s: greyscale/pallete
+", __func__));
         for (i = 0; i < npixels; ++i) {
-            UWORD sample = wsrc[i];             /* 16-bit sample */
+            ULONG idx = i * (ULONG)sspp;
+            UWORD sample = wsrc[idx];             /* 16-bit sample */
             UBYTE v = (UBYTE)(sample >> 8);     /* take high byte */
 
             if (pi == PHOTOMETRIC_MINISWHITE) {
-                D(bug("[tiff.datatype] %s: MINISWHITE\n", __func__));
+                D(bug("[tiff.datatype] %s: MINISWHITE
+", __func__));
                 v = (UBYTE)(255 - v);
             }
 
@@ -91,7 +96,10 @@ static void tiffConvert16to8(UWORD pi, UWORD sspp, ULONG pxfmt, ULONG width, ULO
                 d[4 * i + 0] = v;
                 d[4 * i + 1] = v;
                 d[4 * i + 2] = v;
-                d[4 * i + 3] = 0xFF;
+                if (sspp == 2)
+                    d[4 * i + 3] = (UBYTE)(wsrc[idx + 1] >> 8);
+                else
+                    d[4 * i + 3] = 0xFF;
             }
         }
         return;
@@ -99,7 +107,8 @@ static void tiffConvert16to8(UWORD pi, UWORD sspp, ULONG pxfmt, ULONG width, ULO
 
     /* interleaved RGB (3) or RGBA (4) */
     if (sspp == 3 || sspp == 4) {
-        D(bug("[tiff.datatype] %s: RGB%s\n", __func__, (sspp == 4) ? "A" : ""));
+        D(bug("[tiff.datatype] %s: RGB%s
+", __func__, (sspp == 4) ? "A" : ""));
         ULONG idx;
         for (i = 0; i < npixels; ++i) {
             /* index into 16-bit words: pixel i starts at i * sspp */
@@ -114,7 +123,8 @@ static void tiffConvert16to8(UWORD pi, UWORD sspp, ULONG pxfmt, ULONG width, ULO
             UBYTE b = (UBYTE)(s2 >> 8);
 
             if (pi == PHOTOMETRIC_MINISWHITE) {
-                D(bug("[tiff.datatype] %s: MINISWHITE\n", __func__));
+                D(bug("[tiff.datatype] %s: MINISWHITE
+", __func__));
                 r = (UBYTE)(255 - r);
                 g = (UBYTE)(255 - g);
                 b = (UBYTE)(255 - b);
@@ -145,14 +155,16 @@ static void tiffConvert16to8(UWORD pi, UWORD sspp, ULONG pxfmt, ULONG width, ULO
 
 static void tiffConvert32to8(UWORD pi, UWORD sspp, ULONG pxfmt, ULONG width, ULONG height, const UBYTE *src, UBYTE *dst)
 {
-    D(bug("[tiff.datatype] %s(%04x, %04x, %08x, %u, %u, 0x%p, 0x%p)\n", __func__, pi, sspp, pxfmt, width, height, src, dst));
+    const ULONG *lsrc = (const ULONG *)src;
+    ULONG npixels = width * height;
 
-    for (int i = 0; i < (width * height); i++) {
-        if (pi < PHOTOMETRIC_RGB) {
-            UBYTE pixval;
+    D(bug("[tiff.datatype] %s(%04x, %04x, %08x, %u, %u, 0x%p, 0x%p)
+", __func__, pi, sspp, pxfmt, width, height, src, dst));
 
-            ULONG *long_ptr = (ULONG *)&src[i << 1];
-            pixval = (*long_ptr >> 8) & 0xFF;
+    for (ULONG i = 0; i < npixels; i++) {
+        if (pi < PHOTOMETRIC_RGB && (sspp == 1 || sspp == 2)) {
+            ULONG idx = i * (ULONG)sspp;
+            UBYTE pixval = (UBYTE)((lsrc[idx] >> 24) & 0xFF);
 
             if (pi == PHOTOMETRIC_MINISWHITE) {
                 pixval = 255 - pixval;
@@ -167,39 +179,110 @@ static void tiffConvert32to8(UWORD pi, UWORD sspp, ULONG pxfmt, ULONG width, ULO
                 dst[4 * i + 0] = pixval;
                 dst[4 * i + 1] = pixval;
                 dst[4 * i + 2] = pixval;
-                dst[4 * i + 3] = 0xFF;
+                if (sspp == 2)
+                    dst[4 * i + 3] = (UBYTE)((lsrc[idx + 1] >> 24) & 0xFF);
+                else
+                    dst[4 * i + 3] = 0xFF;
             }
         }
         else if (sspp == 3) {
-            ULONG *long_ptr = (ULONG *)&src[i * 9];
+            const ULONG *long_ptr = &lsrc[i * 3];
 
             if (pxfmt == PBPAFMT_RGB) {
-                dst[3 * i + 0] = (long_ptr[0] >> 8) & 0xFF;
-                dst[3 * i + 1] = (long_ptr[1] >> 8) & 0xFF;
-                dst[3 * i + 2] = (long_ptr[2] >> 8) & 0xFF;
+                dst[3 * i + 0] = (long_ptr[0] >> 24) & 0xFF;
+                dst[3 * i + 1] = (long_ptr[1] >> 24) & 0xFF;
+                dst[3 * i + 2] = (long_ptr[2] >> 24) & 0xFF;
             } else if (pxfmt == PBPAFMT_RGBA) {
-                dst[4 * i + 0] = (long_ptr[0] >> 8) & 0xFF;
-                dst[4 * i + 1] = (long_ptr[1] >> 8) & 0xFF;
-                dst[4 * i + 2] = (long_ptr[2] >> 8) & 0xFF;
+                dst[4 * i + 0] = (long_ptr[0] >> 24) & 0xFF;
+                dst[4 * i + 1] = (long_ptr[1] >> 24) & 0xFF;
+                dst[4 * i + 2] = (long_ptr[2] >> 24) & 0xFF;
                 dst[4 * i + 3] = 0xFF;
             }
         }
         else if (sspp == 4) {
-            ULONG *long_ptr = (ULONG *)&src[i * 12];
+            const ULONG *long_ptr = &lsrc[i * 4];
 
             if (pxfmt == PBPAFMT_RGB) {
-                dst[3 * i + 0] = (long_ptr[0] >> 8) & 0xFF;
-                dst[3 * i + 1] = (long_ptr[1] >> 8) & 0xFF;
-                dst[3 * i + 2] = (long_ptr[2] >> 8) & 0xFF;
+                dst[3 * i + 0] = (long_ptr[0] >> 24) & 0xFF;
+                dst[3 * i + 1] = (long_ptr[1] >> 24) & 0xFF;
+                dst[3 * i + 2] = (long_ptr[2] >> 24) & 0xFF;
             }
             else if (pxfmt == PBPAFMT_RGBA) {
-                dst[4 * i + 0] = (long_ptr[0] >> 8) & 0xFF;
-                dst[4 * i + 1] = (long_ptr[1] >> 8) & 0xFF;
-                dst[4 * i + 2] = (long_ptr[2] >> 8) & 0xFF;
-                dst[4 * i + 3] = (long_ptr[3] >> 8) & 0xFF;
+                dst[4 * i + 0] = (long_ptr[0] >> 24) & 0xFF;
+                dst[4 * i + 1] = (long_ptr[1] >> 24) & 0xFF;
+                dst[4 * i + 2] = (long_ptr[2] >> 24) & 0xFF;
+                dst[4 * i + 3] = (long_ptr[3] >> 24) & 0xFF;
             }
         }
     }
+}
+
+static ULONG tiffRowBytes(ULONG width, ULONG pxfmt)
+{
+    if (pxfmt == PBPAFMT_RGBA) {
+        return width * 4;
+    }
+    if (pxfmt == PBPAFMT_RGB) {
+        return width * 3;
+    }
+    if (pxfmt == PBPAFMT_LUT8) {
+        return width;
+    }
+
+    return width;
+}
+
+static BOOL tiffLoadRGBAFallback(struct IClass *cl, Object *o, TIFF *tif, ULONG width, ULONG height)
+{
+    ULONG pixelCount = width * height;
+    ULONG *raster = AllocVec(pixelCount * sizeof(ULONG), MEMF_ANY);
+    UBYTE *rgba = NULL;
+
+    D(bug("[tiff.datatype] %s(%u,%u)
+", __func__, width, height));
+
+    if (!raster) {
+        return FALSE;
+    }
+
+    if (!TIFFReadRGBAImageOriented(tif, width, height, raster, ORIENTATION_TOPLEFT, 0)) {
+        FreeVec(raster);
+        return FALSE;
+    }
+
+    rgba = AllocVec(pixelCount * 4, MEMF_ANY);
+    if (!rgba) {
+        FreeVec(raster);
+        return FALSE;
+    }
+
+    for (ULONG i = 0; i < pixelCount; ++i) {
+        ULONG pixel = raster[i];
+        rgba[4 * i + 0] = TIFFGetR(pixel);
+        rgba[4 * i + 1] = TIFFGetG(pixel);
+        rgba[4 * i + 2] = TIFFGetB(pixel);
+        rgba[4 * i + 3] = TIFFGetA(pixel);
+    }
+
+    if (!DoSuperMethod(cl, o,
+                       PDTM_WRITEPIXELARRAY,
+                       (IPTR)rgba,
+                       PBPAFMT_RGBA,
+                       width * 4,
+                       0,
+                       0,
+                       width,
+                       height)) {
+        D(bug("[tiff.datatype] %s: DT object failed to render
+", __func__));
+        FreeVec(rgba);
+        FreeVec(raster);
+        return FALSE;
+    }
+
+    FreeVec(rgba);
+    FreeVec(raster);
+    return TRUE;
 }
 
 
@@ -311,94 +394,144 @@ static BOOL LoadTIFF(struct IClass *cl, Object *o)
         UWORD PhotometricInterpretation = 0;
         UWORD compression = 0;
         UWORD planar = PLANARCONFIG_CONTIG;
+        UWORD sampleFormat = SAMPLEFORMAT_UINT;
         STRPTR name = NULL;
-        BOOL isTiled = FALSE, useYCbCr = TRUE;
+        BOOL isTiled = FALSE, useYCbCr = TRUE, useFallback = FALSE;
 
         D(bug("[tiff.datatype] %s: tif @  0x%p\n", __func__, tif));
 
         if (TIFFGetField(tif, TIFFTAG_COMPRESSION, &compression)) {
             if (compression == COMPRESSION_JPEG) {
                 TIFFSetField(tif, TIFFTAG_JPEGCOLORMODE, JPEGCOLORMODE_RGB);
-                D(bug("[tiff.datatype] %s: JPEG compression detected — using RGB mode\n", __func__));
-                useYCbCr = FALSE;
-            } else {
-                D(bug("[tiff.datatype] %s: TIFF uses compression type: %u (not JPEG)\n", __func__, compression));
-            }
-        } else {
-            D(bug("[tiff.datatype] %s: Could not read compression tag.\n", __func__));
-        }
+        TIFFGetFieldDefaulted(tif, TIFFTAG_SAMPLEFORMAT, &sampleFormat);
+        if (!(BitsPerSample == 1 || BitsPerSample == 2 || BitsPerSample == 4 || BitsPerSample == 8 || BitsPerSample == 16 || BitsPerSample == 32))
+            useFallback = TRUE;
+        if (SamplesPerPixel > 4)
+            useFallback = TRUE;
+        if (SamplesPerPixel > 1 && BitsPerSample < 8)
+            useFallback = TRUE;
+        if (PhotometricInterpretation == PHOTOMETRIC_SEPARATED ||
+            PhotometricInterpretation == PHOTOMETRIC_CIELAB ||
+            PhotometricInterpretation == PHOTOMETRIC_ICCLAB ||
+            PhotometricInterpretation == PHOTOMETRIC_ITULAB ||
+            PhotometricInterpretation == PHOTOMETRIC_LOGL ||
+            PhotometricInterpretation == PHOTOMETRIC_LOGLUV)
+            useFallback = TRUE;
+        if (PhotometricInterpretation == PHOTOMETRIC_YCBCR && BitsPerSample != 8)
+            useFallback = TRUE;
+        if (PhotometricInterpretation == PHOTOMETRIC_PALETTE && BitsPerSample > 8)
+            useFallback = TRUE;
+        if (sampleFormat != SAMPLEFORMAT_UINT)
+            useFallback = TRUE;
+        if (planar == PLANARCONFIG_SEPARATE && (BitsPerSample < 8 || BitsPerSample > 8))
+            useFallback = TRUE;
 
-        TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &BitsPerSample);
-        if ((samplesize = BitsPerSample) < 8)
-            samplesize = 8;
-        TIFFGetField(tif, TIFFTAG_ROWSPERSTRIP, &RowsPerStrip);  
-        TIFFGetFieldDefaulted(tif, TIFFTAG_SAMPLESPERPIXEL, &SamplesPerPixel);
-        TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &imageWidth);
-        TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &imageLength);  
-        TIFFGetFieldDefaulted(tif, TIFFTAG_PLANARCONFIG, &planar);
-        TIFFGetField(tif, TIFFTAG_PHOTOMETRIC, &PhotometricInterpretation);
-
-        bmhd->bmh_Width  = bmhd->bmh_PageWidth  = imageWidth;
-        bmhd->bmh_Height = bmhd->bmh_PageHeight = imageLength;
-        bmhd->bmh_Depth = samplesize * SamplesPerPixel;
-        if (bmhd->bmh_Depth > 32)
+        if (useFallback)
             bmhd->bmh_Depth = 32;
-        
-        D(
-            bug("[tiff.datatype] %s: %ux%ux%u (%ux%x)\n", __func__, imageWidth, imageLength, bmhd->bmh_Depth, BitsPerSample, SamplesPerPixel);
-            bug("[tiff.datatype] %s: PhotometricInterpretation %04x\n", __func__, PhotometricInterpretation);
-        )
-
-        /* Pass picture size to picture.datatype */
-        GetDTAttrs( o, DTA_Name, (IPTR)&name, TAG_DONE );
-        SetDTAttrs(o, NULL, NULL, DTA_NominalHoriz, imageWidth,
-                                  DTA_NominalVert , imageLength,
-                                  DTA_ObjName     , (IPTR)name,
-                                  TAG_DONE);
-
-        ULONG buffersize, x, y;
-        UBYTE *buf, *tmp_buf = NULL;
-        IPTR pformat;
-
-        if (!TIFFIsTiled(tif)) {
-            tileWidth = imageWidth;
-            tileLength = 1;
-            buffersize = TIFFScanlineSize(tif);
-        } else {
-            TIFFGetField(tif, TIFFTAG_TILEWIDTH, &tileWidth);
-            TIFFGetField(tif, TIFFTAG_TILELENGTH, &tileLength);
-            buffersize = TIFFTileSize(tif);
-            isTiled = TRUE;
-        }
-
-        D(bug("[tiff.datatype] %s: Allocating %u bytes\n", __func__, buffersize * ((SamplesPerPixel * samplesize) / 8)));
-        buf = AllocVec(buffersize * ((SamplesPerPixel * samplesize) / 8), MEMF_ANY);
-        if (!buf) {
+        if (useFallback) {
+            BOOL ok = tiffLoadRGBAFallback(cl, o, tif, imageWidth, imageLength);
             TIFFClose(tif);
-            return FALSE;
+            return ok;
         }
-        D(bug("[tiff.datatype] %s: buf @ 0x%p\n", __func__, buf));
 
-        if (BitsPerSample <= 8) {
-            UBYTE *plnrbuf = NULL, *ycbcrbuf = NULL;
-            BOOL done = FALSE;
+                    if (SamplesPerPixel == 2) {
+                        tmp_buf = AllocVec(tileWidth * tileLength * 4, 0);
+                        pformat = PBPAFMT_RGBA;
+                        D(bug("[tiff.datatype] %s[8BPS]: Greyscale + Alpha image\n", __func__));
+                    } else {
+                        tmp_buf = AllocVec(tileWidth * tileLength * 3, 0);
+                        pformat = PBPAFMT_RGB;
+                        D(
+                        if (BitsPerSample == 1)
+                            bug("[tiff.datatype] %s[8BPS]: Black & White image\n", __func__);
+                        else
+                            bug("[tiff.datatype] %s[8BPS]: %ubit Greyscale image\n", __func__, BitsPerSample);
+                        )
+                    }
 
-            if (SamplesPerPixel < 3) {
-                if (PhotometricInterpretation < PHOTOMETRIC_RGB) {
-                    tmp_buf = AllocVec(tileWidth * tileLength * 3, 0);
-                    D(
-                    if (BitsPerSample == 1)
-                        bug("[tiff.datatype] %s[8BPS]: Black & White image\n", __func__);
-                    else
-                        bug("[tiff.datatype] %s[8BPS]: %ubit Greyscale image\n", __func__, BitsPerSample);
-                    )
-                    pformat = PBPAFMT_RGB;
-                } else if (PhotometricInterpretation == PHOTOMETRIC_PALETTE) {
-                    UWORD                   *red_colormap;
-                    UWORD                   *green_colormap;
-                    UWORD                   *blue_colormap;
-
-                    D(bug("[tiff.datatype] %s[8BPS]: %ubit Palette Mapped\n", __func__, BitsPerSample));
+                    D(bug("[tiff.datatype] %s[8BPS]: %ubit Palette Mapped
+", __func__, BitsPerSample));
+                            D(bug("[tiff.datatype] %s[8BPS]: read %u palette entries
+", __func__, 1 << BitsPerSample));
+                D(bug("[tiff.datatype] %s[8BPS]: unhandled SamplesPerPixel (%u)
+", __func__, SamplesPerPixel));
+                            ULONG planeSize = tileWidth * tileLength;
+                            int plane, planemax = SamplesPerPixel;
+                                if (TIFFReadTile(tif, plnrbuf + plane * planeSize, x, y, 0, plane) < 0) {
+                            ULONG planeSize = copyWidth * copyHeight;
+                            int plane, planemax = SamplesPerPixel;
+                                if (TIFFReadScanline(tif, plnrbuf + plane * planeSize, y, plane) != 1) {
+                        ULONG planeRowStride = isTiled ? tileWidth : copyWidth;
+                        ULONG outRowStride = isTiled ? tileWidth : copyWidth;
+                        ULONG planeSize = planeRowStride * (isTiled ? tileLength : copyHeight);
+                        if (SamplesPerPixel == 1) {
+                            CopyMem(plnrbuf, buf, planeSize);
+                        } else if (SamplesPerPixel == 2) {
+                            UBYTE *gplane = plnrbuf + 0 * planeSize;
+                            UBYTE *aplane = plnrbuf + 1 * planeSize;
+                                for (pcol = 0; pcol < copyWidth; ++pcol) {
+                                    int srcIndex = prow * planeRowStride + pcol;
+                                    int outIndex = prow * outRowStride + pcol;
+                                    buf[2 * outIndex + 0] = gplane[srcIndex];
+                                    buf[2 * outIndex + 1] = aplane[srcIndex];
+                                }
+                            UBYTE *rplane = plnrbuf + 0 * planeSize;
+                            UBYTE *gplane = plnrbuf + 1 * planeSize;
+                            UBYTE *bplane = plnrbuf + 2 * planeSize;
+                                    int srcIndex = prow * planeRowStride + pcol;
+                                    int outIndex = prow * outRowStride + pcol;
+                                    buf[3 * outIndex + 0] = rplane[srcIndex];
+                                    buf[3 * outIndex + 1] = gplane[srcIndex];
+                                    buf[3 * outIndex + 2] = bplane[srcIndex];
+                                }
+                            }
+                        } else if (SamplesPerPixel == 4) {
+                            UBYTE *rplane = plnrbuf + 0 * planeSize;
+                            UBYTE *gplane = plnrbuf + 1 * planeSize;
+                            UBYTE *bplane = plnrbuf + 2 * planeSize;
+                            UBYTE *aplane = plnrbuf + 3 * planeSize;
+                            for (prow = 0; prow < copyHeight; ++prow) {
+                                for (pcol = 0; pcol < copyWidth; ++pcol) {
+                                    int srcIndex = prow * planeRowStride + pcol;
+                                    int outIndex = prow * outRowStride + pcol;
+                                    buf[4 * outIndex + 0] = rplane[srcIndex];
+                                    buf[4 * outIndex + 1] = gplane[srcIndex];
+                                    buf[4 * outIndex + 2] = bplane[srcIndex];
+                                    buf[4 * outIndex + 3] = aplane[srcIndex];
+                                BOOL hasAlpha = (SamplesPerPixel == 2);
+                                        pixval = buf[i * SamplesPerPixel];
+                                    if (hasAlpha) {
+                                        tmp_buf[4 * i + 0] = pixval;
+                                        tmp_buf[4 * i + 1] = pixval;
+                                        tmp_buf[4 * i + 2] = pixval;
+                                        tmp_buf[4 * i + 3] = buf[i * SamplesPerPixel + 1];
+                                    } else {
+                                        tmp_buf[3 * i + 0] = pixval;
+                                        tmp_buf[3 * i + 1] = pixval;
+                                        tmp_buf[3 * i + 2] = pixval;
+                                    }
+                                bytesPerPixel = hasAlpha ? 4 : 3;
+                tmp_buf = AllocVec(tileWidth * tileLength * 4, MEMF_ANY);
+                pformat = PBPAFMT_RGBA;
+            } else if (SamplesPerPixel == 2 && PhotometricInterpretation < PHOTOMETRIC_RGB) {
+                tmp_buf = AllocVec(tileWidth * tileLength * 4, MEMF_ANY);
+                D(bug("[tiff.datatype] %s[16BPS]: Greyscale + Alpha image\n", __func__));
+            for (y = 0; !done && y < bmhd->bmh_Height; y += tileLength) {
+                for (x = 0; !done && x < bmhd->bmh_Width; x += tileWidth) {
+                        ULONG rowBytes = tmp_buf ? tiffRowBytes(tileWidth, pformat)
+                                                   : (tileWidth * SamplesPerPixel * (BitsPerSample / 8));
+                                          (IPTR)(tmp_buf ? tmp_buf : buf),
+                                          rowBytes,
+            } else if (SamplesPerPixel == 2 && PhotometricInterpretation < PHOTOMETRIC_RGB) {
+                tmp_buf = AllocVec(tileWidth * tileLength * 4, 0);
+                pformat = PBPAFMT_RGBA;
+                D(bug("[tiff.datatype] %s[32BPS]: Greyscale + Alpha image\n", __func__));
+                                PixelArrayMod = tiffRowBytes(tileWidth, pformat);
+                                PixelArrayMod = tileWidth * SamplesPerPixel * (BitsPerSample / 8);
+                        PixelArrayMod = tiffRowBytes(bmhd->bmh_Width, pformat);
+                        PixelArrayMod = bmhd->bmh_Width * SamplesPerPixel * (BitsPerSample / 8);
+        D(bug("[tiff.datatype] %s: done, cleaning up...
+", __func__));
 
                     if ((BitsPerSample < 8) || (SamplesPerPixel > 1))
                         tmp_buf = AllocVec(tileWidth * tileLength, 0);
