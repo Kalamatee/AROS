@@ -403,7 +403,7 @@ static BOOL LoadTIFF(struct IClass *cl, Object *o)
         if (TIFFGetField(tif, TIFFTAG_COMPRESSION, &compression)) {
             if (compression == COMPRESSION_JPEG) {
                 TIFFSetField(tif, TIFFTAG_JPEGCOLORMODE, JPEGCOLORMODE_RGB);
-        TIFFGetFieldDefaulted(tif, TIFFTAG_SAMPLEFORMAT, &sampleFormat);
+                D(bug("[tiff.datatype] %s: JPEG compression detected - using RGB mode\n", __func__));
         if (!(BitsPerSample == 1 || BitsPerSample == 2 || BitsPerSample == 4 || BitsPerSample == 8 || BitsPerSample == 16 || BitsPerSample == 32))
             useFallback = TRUE;
         if (SamplesPerPixel > 4)
