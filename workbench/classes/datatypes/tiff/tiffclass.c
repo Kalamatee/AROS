@@ -397,6 +397,9 @@ static BOOL LoadTIFF(struct IClass *cl, Object *o)
         UWORD sampleFormat = SAMPLEFORMAT_UINT;
         STRPTR name = NULL;
         BOOL isTiled = FALSE, useYCbCr = TRUE, useFallback = FALSE;
+        ULONG buffersize = 0, x = 0, y = 0;
+        UBYTE *buf = NULL, *tmp_buf = NULL;
+        IPTR pformat = 0;
 
         D(bug("[tiff.datatype] %s: tif @  0x%p\n", __func__, tif));
 
@@ -446,10 +449,6 @@ static BOOL LoadTIFF(struct IClass *cl, Object *o)
                             bug("[tiff.datatype] %s[8BPS]: Black & White image\n", __func__);
                         else
                             bug("[tiff.datatype] %s[8BPS]: %ubit Greyscale image\n", __func__, BitsPerSample);
-                        )
-                    }
-
-                    D(bug("[tiff.datatype] %s[8BPS]: %ubit Palette Mapped
 ", __func__, BitsPerSample));
                             D(bug("[tiff.datatype] %s[8BPS]: read %u palette entries
 ", __func__, 1 << BitsPerSample));
