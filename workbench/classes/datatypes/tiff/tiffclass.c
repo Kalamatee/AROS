@@ -70,21 +70,18 @@ static void tiffConvert16to8(UWORD pi, UWORD sspp, ULONG pxfmt, ULONG width, ULO
     ULONG npixels = width * height;
     ULONG i;
 
-    D(bug("[tiff.datatype] %s(%04x, %04x, %08x, %u, %u, 0x%p, 0x%p)
-", __func__, pi, sspp, pxfmt, width, height, src, dst));
+    D(bug("[tiff.datatype] %s(%04x, %04x, %08x, %u, %u, 0x%p, 0x%p)\n", __func__, pi, sspp, pxfmt, width, height, src, dst));
 
     /* 1-sample (grayscale / palette) case */
     if (sspp == 1 || sspp == 2) {
-        D(bug("[tiff.datatype] %s: greyscale/pallete
-", __func__));
+        D(bug("[tiff.datatype] %s: greyscale/pallete\n", __func__));
         for (i = 0; i < npixels; ++i) {
             ULONG idx = i * (ULONG)sspp;
             UWORD sample = wsrc[idx];             /* 16-bit sample */
             UBYTE v = (UBYTE)(sample >> 8);     /* take high byte */
 
             if (pi == PHOTOMETRIC_MINISWHITE) {
-                D(bug("[tiff.datatype] %s: MINISWHITE
-", __func__));
+                D(bug("[tiff.datatype] %s: MINISWHITE\n", __func__));
                 v = (UBYTE)(255 - v);
             }
 
@@ -107,8 +104,7 @@ static void tiffConvert16to8(UWORD pi, UWORD sspp, ULONG pxfmt, ULONG width, ULO
 
     /* interleaved RGB (3) or RGBA (4) */
     if (sspp == 3 || sspp == 4) {
-        D(bug("[tiff.datatype] %s: RGB%s
-", __func__, (sspp == 4) ? "A" : ""));
+        D(bug("[tiff.datatype] %s: RGB%s\n", __func__, (sspp == 4) ? "A" : ""));
         ULONG idx;
         for (i = 0; i < npixels; ++i) {
             /* index into 16-bit words: pixel i starts at i * sspp */
@@ -123,8 +119,7 @@ static void tiffConvert16to8(UWORD pi, UWORD sspp, ULONG pxfmt, ULONG width, ULO
             UBYTE b = (UBYTE)(s2 >> 8);
 
             if (pi == PHOTOMETRIC_MINISWHITE) {
-                D(bug("[tiff.datatype] %s: MINISWHITE
-", __func__));
+                D(bug("[tiff.datatype] %s: MINISWHITE\n", __func__));
                 r = (UBYTE)(255 - r);
                 g = (UBYTE)(255 - g);
                 b = (UBYTE)(255 - b);
@@ -158,8 +153,7 @@ static void tiffConvert32to8(UWORD pi, UWORD sspp, ULONG pxfmt, ULONG width, ULO
     const ULONG *lsrc = (const ULONG *)src;
     ULONG npixels = width * height;
 
-    D(bug("[tiff.datatype] %s(%04x, %04x, %08x, %u, %u, 0x%p, 0x%p)
-", __func__, pi, sspp, pxfmt, width, height, src, dst));
+    D(bug("[tiff.datatype] %s(%04x, %04x, %08x, %u, %u, 0x%p, 0x%p)\n", __func__, pi, sspp, pxfmt, width, height, src, dst));
 
     for (ULONG i = 0; i < npixels; i++) {
         if (pi < PHOTOMETRIC_RGB && (sspp == 1 || sspp == 2)) {
@@ -238,8 +232,7 @@ static BOOL tiffLoadRGBAFallback(struct IClass *cl, Object *o, TIFF *tif, ULONG 
     ULONG *raster = AllocVec(pixelCount * sizeof(ULONG), MEMF_ANY);
     UBYTE *rgba = NULL;
 
-    D(bug("[tiff.datatype] %s(%u,%u)
-", __func__, width, height));
+    D(bug("[tiff.datatype] %s(%u,%u)\n", __func__, width, height));
 
     if (!raster) {
         return FALSE;
@@ -273,8 +266,7 @@ static BOOL tiffLoadRGBAFallback(struct IClass *cl, Object *o, TIFF *tif, ULONG 
                        0,
                        width,
                        height)) {
-        D(bug("[tiff.datatype] %s: DT object failed to render
-", __func__));
+        D(bug("[tiff.datatype] %s: DT object failed to render\n", __func__));
         FreeVec(rgba);
         FreeVec(raster);
         return FALSE;
@@ -891,8 +883,7 @@ static BOOL LoadTIFF(struct IClass *cl, Object *o)
 
                     if (tmp_buf) {
                         tiffConvert32to8(PhotometricInterpretation, SamplesPerPixel,
-                                         pformat, bmhd->bmh_Width, 1, buf, tmp_buf);
-
+        D(bug("[tiff.datatype] %s: done, cleaning up...\n", __func__));
                         PixelArrayMod = bmhd->bmh_Width;
                         PixelData     = tmp_buf;
                     } else {
