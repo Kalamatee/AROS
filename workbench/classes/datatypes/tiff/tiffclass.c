@@ -32,7 +32,13 @@
 #include <proto/tiff.h>
 
 #include <tiffinline.h>
-#include <tiffio.h>
+
+#ifndef TIFFGetR
+#define TIFFGetR(abgr) ((UBYTE)((abgr) & 0xFF))
+#define TIFFGetG(abgr) ((UBYTE)(((abgr) >> 8) & 0xFF))
+#define TIFFGetB(abgr) ((UBYTE)(((abgr) >> 16) & 0xFF))
+#define TIFFGetA(abgr) ((UBYTE)(((abgr) >> 24) & 0xFF))
+#endif
 
 #include <aros/symbolsets.h>
 
