@@ -494,12 +494,9 @@ static BOOL LoadTIFF(struct IClass *cl, Object *o)
                                 for (pcol = 0; pcol < copyWidth; ++pcol) {
                                     int srcIndex = prow * planeRowStride + pcol;
                                     int outIndex = prow * outRowStride + pcol;
-                                    buf[4 * outIndex + 0] = rplane[srcIndex];
-                                    buf[4 * outIndex + 1] = gplane[srcIndex];
-                                    buf[4 * outIndex + 2] = bplane[srcIndex];
-                                    buf[4 * outIndex + 3] = aplane[srcIndex];
-                                BOOL hasAlpha = (SamplesPerPixel == 2);
-                                        pixval = buf[i * SamplesPerPixel];
+                    D(bug("[tiff.datatype] %s[8BPS]: %ubit Palette Mapped\n", __func__, BitsPerSample));
+                            D(bug("[tiff.datatype] %s[8BPS]: read %u palette entries\n", __func__, 1 << BitsPerSample));
+                D(bug("[tiff.datatype] %s[8BPS]: unhandled SamplesPerPixel (%u)\n", __func__, SamplesPerPixel));
                                     if (hasAlpha) {
                                         tmp_buf[4 * i + 0] = pixval;
                                         tmp_buf[4 * i + 1] = pixval;
