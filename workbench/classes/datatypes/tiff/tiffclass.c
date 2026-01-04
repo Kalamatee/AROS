@@ -33,11 +33,13 @@
 
 #include <tiffinline.h>
 
+#include <aros/macros.h>
+
 #ifndef TIFFGetR
-#define TIFFGetR(abgr) ((UBYTE)((abgr) & 0xFF))
-#define TIFFGetG(abgr) ((UBYTE)(((abgr) >> 8) & 0xFF))
-#define TIFFGetB(abgr) ((UBYTE)(((abgr) >> 16) & 0xFF))
-#define TIFFGetA(abgr) ((UBYTE)(((abgr) >> 24) & 0xFF))
+#define TIFFGetR(abgr) ((UBYTE)(AROS_BE2LONG(abgr) & 0xFF))
+#define TIFFGetG(abgr) ((UBYTE)((AROS_BE2LONG(abgr) >> 8) & 0xFF))
+#define TIFFGetB(abgr) ((UBYTE)((AROS_BE2LONG(abgr) >> 16) & 0xFF))
+#define TIFFGetA(abgr) ((UBYTE)((AROS_BE2LONG(abgr) >> 24) & 0xFF))
 #endif
 
 #include <aros/symbolsets.h>
