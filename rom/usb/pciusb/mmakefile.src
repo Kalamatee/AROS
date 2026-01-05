@@ -7,6 +7,8 @@ FILES := \
         pciusb_dev \
         buffer \
         ohci/ohcichip \
+        ohci/ohci_hcport \
+        ohci/ohci_isoch \
         uhci/uhcichip \
         uhci/uhci_hcport \
         uhci/uhci_isoch \
@@ -15,10 +17,10 @@ FILES := \
         ehci/ehci_isoch \
         xhci/xhcichip \
         xhci/xhcichip_periodic \
-        xhci/xhcichip_isoch \
+        xhci/xhci_isoch \
         xhci/xhcichip_async \
         xhci/xhcichip_schedule \
-        xhci/xhcichip_hcport \
+        xhci/xhci_hcport \
         xhci/xhcichip_hw \
         xhci/xhcidevice \
         xhci/xhcidebug \

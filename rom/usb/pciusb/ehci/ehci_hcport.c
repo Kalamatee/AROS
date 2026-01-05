@@ -58,8 +58,7 @@ void ehciCheckPortStatusChange(struct PCIController *hc)
             hc->hc_PortChangeMap[hciport] |= UPSF_PORT_OVER_CURRENT;
         }
         WRITEREG32_LE(hc->hc_RegBase, portreg, oldval);
-        pciusbEHCIDebug("EHCI", "PCI Int Port %ld Change %08lx
-", hciport + 1, oldval);
+        pciusbEHCIDebug("EHCI", "PCI Int Port %ld Change %08lx\n", hciport + 1, oldval);
         if(hc->hc_PortChangeMap[hciport]) {
             unit->hu_RootPortChanges |= 1UL<<(hciport + 1);
         }

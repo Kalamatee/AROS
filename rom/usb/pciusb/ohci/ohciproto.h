@@ -13,6 +13,9 @@ WORD ohciQueueIsochIO(struct PCIController *hc, struct RTIsoNode *rtn);
 void ohciFreeIsochIO(struct PCIController *hc, struct RTIsoNode *rtn);
 void ohciStartIsochIO(struct PCIController *hc, struct RTIsoNode *rtn);
 void ohciStopIsochIO(struct PCIController *hc, struct RTIsoNode *rtn);
+void ohciScheduleIsoTDs(struct PCIController *hc);
+
+void ohciCheckPortStatusChange(struct PCIController *hc);
 
 BOOL ohciSetFeature(struct PCIUnit *unit, struct PCIController *hc, UWORD hciport, UWORD idx, UWORD val, WORD *retval);
 BOOL ohciClearFeature(struct PCIUnit *unit, struct PCIController *hc, UWORD hciport, UWORD idx, UWORD val, WORD *retval);
