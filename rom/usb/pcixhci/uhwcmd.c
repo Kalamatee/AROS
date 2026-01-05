@@ -11,7 +11,7 @@
 #include LC_LIBDEFS_FILE
 
 #include "uhwcmd.h"
-#include "xhci/xhciproto.h"
+#include "xhciproto.h"
 
 static inline BOOL uhwIsRootHubIOReq(const struct IOUsbHWReq *ioreq,
                                      const struct PCIUnit *unit)

@@ -17,7 +17,7 @@
 #include <string.h>
 
 #include "uhwcmd.h"
-#include "xhci/xhciproto.h"
+#include "xhciproto.h"
 
 #define NewList NEWLIST
 
