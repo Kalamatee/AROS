@@ -1705,8 +1705,21 @@ WORD uhciQueueIsochIO(struct PCIController *hc, struct RTIsoNode *rtn)
         pciusbUHCIDebug("UHCI", "ISO schedule current=%ld next=%ld lead=%ld interval=%ld\n",
                         current_frame, bufreq->ubr_Frame, lead, interval);
     } else {
-        pciusbUHCIDebug("UHCI", "ISO schedule current=%ld interval=%ld\n",
-                        bufreq->ubr_Frame, interval);
+        ULONG current_frame;
+        ULONG lead = interval * 2;
+        LONG delta;
+
+        uhciUpdateFrameCounter(hc);
+        current_frame = hc->hc_FrameCounter;
+        delta = (LONG)bufreq->ubr_Frame - (LONG)current_frame;
+        if (delta <= 0 || delta >= (LONG)(UHCI_FRAMELIST_SIZE - lead)) {
+            bufreq->ubr_Frame = current_frame + lead;
+            pciusbUHCIDebug("UHCI", "ISO schedule adjusted current=%ld next=%ld lead=%ld interval=%ld\n",
+                            current_frame, bufreq->ubr_Frame, lead, interval);
+        } else {
+            pciusbUHCIDebug("UHCI", "ISO schedule current=%ld interval=%ld\n",
+                            bufreq->ubr_Frame, interval);
+        }
     }
     rtn->rtn_NextFrame = bufreq->ubr_Frame + interval;
 
@@ -1772,8 +1785,6 @@ void uhciHandleIsochTDs(struct PCIController *hc)
 
             if(urti) {
                 if(ioreq->iouh_Dir == UHDIR_IN) {
-                    if(urti->urti_InReqHook)
-                        CallHookPkt(urti->urti_InReqHook, rtn, &ptd->ptd_BufferReq);
                     if(urti->urti_InDoneHook)
                         CallHookPkt(urti->urti_InDoneHook, rtn, &ptd->ptd_BufferReq);
                 } else {
@@ -1796,8 +1807,21 @@ void uhciHandleIsochTDs(struct PCIController *hc)
                 uhciFreeIsochIO(hc, rtn);
                 pciusbFreeStdIsoNode(hc, rtn);
             } else if (urti) {
-                if (uhciQueueIsochIO(hc, rtn) == RC_OK)
+                UWORD pending = 0;
+                UWORD target = (rtn->rtn_PTDCount > 1) ? 2 : 1;
+
+                for (UWORD scan = 0; scan < rtn->rtn_PTDCount; scan++) {
+                    struct PTDNode *ptdscan = rtn->rtn_PTDs[scan];
+                    if (ptdscan && (ptdscan->ptd_Flags & (PTDF_ACTIVE | PTDF_BUFFER_VALID)))
+                        pending++;
+                }
+
+                while (pending < target) {
+                    if (uhciQueueIsochIO(hc, rtn) != RC_OK)
+                        break;
                     uhciStartIsochIO(hc, rtn);
+                    pending++;
+                }
             }
         }
 
