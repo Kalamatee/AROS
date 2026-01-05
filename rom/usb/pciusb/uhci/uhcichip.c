@@ -1712,11 +1712,11 @@ WORD uhciQueueIsochIO(struct PCIController *hc, struct RTIsoNode *rtn)
     interval = ioreq->iouh_Interval ? ioreq->iouh_Interval : 1;
     if (!bufreq->ubr_Frame) {
         ULONG current_frame;
-        ULONG lead = interval * 4;
+        ULONG lead = interval * 8;
         ULONG next = 0;
 
-        if (lead < 4)
-            lead = 4;
+        if (lead < 8)
+            lead = 8;
 
         uhciUpdateFrameCounter(hc);
         current_frame = hc->hc_FrameCounter;
@@ -1731,11 +1731,11 @@ WORD uhciQueueIsochIO(struct PCIController *hc, struct RTIsoNode *rtn)
                         current_frame, bufreq->ubr_Frame, lead, interval);
     } else {
         ULONG current_frame;
-        ULONG lead = interval * 4;
+        ULONG lead = interval * 8;
         LONG delta;
 
-        if (lead < 4)
-            lead = 4;
+        if (lead < 8)
+            lead = 8;
 
         uhciUpdateFrameCounter(hc);
         current_frame = hc->hc_FrameCounter;
@@ -1750,10 +1750,10 @@ WORD uhciQueueIsochIO(struct PCIController *hc, struct RTIsoNode *rtn)
         }
     }
     if (bufreq->ubr_Frame < hc->hc_FrameCounter) {
-        ULONG lead = interval * 4;
+        ULONG lead = interval * 8;
 
-        if (lead < 4)
-            lead = 4;
+        if (lead < 8)
+            lead = 8;
 
         bufreq->ubr_Frame = hc->hc_FrameCounter + lead;
         pciusbUHCIDebug("UHCI", "ISO schedule resync current=%ld next=%ld lead=%ld interval=%ld\n",
@@ -1806,10 +1806,10 @@ void uhciHandleIsochTDs(struct PCIController *hc)
             ctrl = READMEM32_LE(&utd->utd_CtrlStatus);
             if(ctrl & UTCF_ACTIVE) {
                 interval = rtn->rtn_IOReq.iouh_Interval ? rtn->rtn_IOReq.iouh_Interval : 1;
-                ULONG timeout_window = interval * 2;
+                ULONG timeout_window = interval * 8;
 
-                if (timeout_window < 4)
-                    timeout_window = 4;
+                if (timeout_window < 16)
+                    timeout_window = 16;
 
                 if (current_frame > (ptd->ptd_FrameIdx + timeout_window)) {
                     error = TRUE;
