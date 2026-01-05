@@ -69,8 +69,8 @@ void ohciCheckPortStatusChange(struct PCIController *hc)
             WRITEREG32_LE(hc->hc_RegBase, portreg, OHPF_CONNECTCHANGE|OHPF_ENABLECHANGE|OHPF_RESUMEDTX|OHPF_OVERCURRENTCHG|OHPF_RESETCHANGE);
         }
 
-        pciusbOHCIDebug("OHCI", "PCI Int Port %ld (glob %ld) Change %08lx
-", hciport, hc->hc_PortNum[hciport] + 1, oldval);
+        pciusbOHCIDebug("OHCI", "PCI Int Port %ld (glob %ld) Change %08lx\n",
+                        hciport, hc->hc_PortNum[hciport] + 1, oldval);
         if(hc->hc_PortChangeMap[hciport]) {
             unit->hu_RootPortChanges |= 1UL<<(hc->hc_PortNum[hciport] + 1);
         }

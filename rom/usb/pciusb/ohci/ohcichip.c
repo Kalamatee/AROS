@@ -99,6 +99,7 @@ static void ohciFreeTDChain(struct PCIController *hc, struct OhciTD *nextotd)
 static void ohciFreeEDContext(struct PCIController *hc, struct IOUsbHWReq *ioreq)
 {
     struct PCIDevice *base = hc->hc_Device;
+    struct PCIUnit *unit = hc->hc_Unit;
     struct OhciED *oed = ioreq->iouh_DriverPrivate1;
     UWORD devadrep;
     UWORD dir;
@@ -123,7 +124,7 @@ static void ohciFreeEDContext(struct PCIController *hc, struct IOUsbHWReq *ioreq
     Enable();
 }
 
-static void ohciUpdateIntTree(struct PCIController *hc)
+void ohciUpdateIntTree(struct PCIController *hc)
 {
     struct OhciHCPrivate *ohcihcp = (struct OhciHCPrivate *)hc->hc_CPrivate;
     struct OhciED *oed;
@@ -1703,5 +1704,4 @@ void ohciFree(struct PCIController *hc, struct PCIUnit *hu)
 
     KPRINTF(20, "Shutting down OHCI done.\n");
 }
-
 

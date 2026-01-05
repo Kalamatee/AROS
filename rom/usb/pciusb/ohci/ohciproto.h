@@ -5,6 +5,7 @@
 
 void ohciUpdateFrameCounter(struct PCIController *hc);
 void ohciAbortRequest(struct PCIController *hc, struct IOUsbHWReq *ioreq);
+void ohciUpdateIntTree(struct PCIController *hc);
 BOOL ohciInit(struct PCIController *hc, struct PCIUnit *hu);
 void ohciFree(struct PCIController *hc, struct PCIUnit *hu);
 
