@@ -91,6 +91,7 @@ AROS_UFH3(static IPTR, usbromstartup_early,
         IPTR usecount = 0;
         ULONG bootdelay = 4;
         ULONG cnt = 0;
+        ULONG xhci_cnt = 0;
 
         D(bug("[USBROMStartup] %s: Adding early ROM classes...\n", __func__));
 
@@ -101,6 +102,13 @@ AROS_UFH3(static IPTR, usbromstartup_early,
             msdclass = psdAddClass("massstorage.class", 0);
 
         /* Find available usb hardware */
+        if (!(bootflags & USBROMSTART_FLAG_NOUSB3)) {
+            while((phw = psdAddHardware("pcixhci.device", xhci_cnt))) {
+                D(bug("[USBROMStartup] %s: Added pcixhci.device unit %u\n", __func__, xhci_cnt));
+                psdEnumerateHardware(phw);
+                xhci_cnt++;
+            }
+        }
         while((phw = psdAddHardware("pciusb.device", cnt))) {
             D(bug("[USBROMStartup] %s: Added pciusb.device unit %u\n", __func__, cnt));
             psdEnumerateHardware(phw);

@@ -3773,7 +3773,7 @@ takeownership:
     }
 
     /* install reset handler */
-    hc->hc_ResetInt.is_Node.ln_Name = "XHCI PCI (pciusb.device)";
+        hc->hc_ResetInt.is_Node.ln_Name = "XHCI PCI (pcixhci.device)";
     hc->hc_ResetInt.is_Code = (VOID_FUNC)XhciResetHandler;
     hc->hc_ResetInt.is_Data = hc;
     AddResetCallback(&hc->hc_ResetInt);
@@ -3887,14 +3887,14 @@ takeownership:
 
     struct Task *tmptask;
     char buf[64];
-    psdSafeRawDoFmt(buf, 64, "usbhw<pciusb.device/%ld> Event Ring Task", hu->hu_UnitNo);
+    psdSafeRawDoFmt(buf, 64, "usbhw<pcixhci.device/%ld> Event Ring Task", hu->hu_UnitNo);
     if ((tmptask = psdSpawnSubTask(buf, xhciEventRingTask, hc))) {
         sigmask = Wait(sigmask);
         pciusbXHCIDebug("xHCI", DEBUGCOLOR_SET "Event Ring Task @ 0x%p, Sig = %u" DEBUGCOLOR_RESET" \n",
                         xhcic->xhc_EventTask.xet_Task,
                         xhcic->xhc_EventTask.xet_ProcessEventsSignal);
     }
-    psdSafeRawDoFmt(buf, 64, "usbhw<pciusb.device/%ld> Port Task", hu->hu_UnitNo);
+    psdSafeRawDoFmt(buf, 64, "usbhw<pcixhci.device/%ld> Port Task", hu->hu_UnitNo);
     if ((tmptask = psdSpawnSubTask(buf, xhciPortTask, hc))) {
         sigmask = Wait(sigmask);
         pciusbXHCIDebug("xHCI", DEBUGCOLOR_SET "Port Task @ 0x%p, Sig = %u" DEBUGCOLOR_RESET" \n",

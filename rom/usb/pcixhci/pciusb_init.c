@@ -54,12 +54,18 @@ static int getArguments(struct PCIDevice *base)
                         base->hd_Flags |= HDF_FORCEPOWER;
                         continue;
                     }
+                    if (strstr(CmdLine, "xhci")) {
+                        base->hd_Flags |= HDF_ENABLEXHCI;
+                    }
                 }
             }
         }
     }
     if (base->hd_Flags & HDF_FORCEPOWER) {
         pciusbInfo("", "Forcing USB Power\n");
+    }
+    if (base->hd_Flags & HDF_ENABLEXHCI) {
+        pciusbInfo("", "Enabling experimental XHCI code\n");
     }
     return TRUE;
 }
