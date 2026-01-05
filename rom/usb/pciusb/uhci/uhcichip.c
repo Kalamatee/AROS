@@ -1674,7 +1674,10 @@ WORD uhciQueueIsochIO(struct PCIController *hc, struct RTIsoNode *rtn)
 
     struct IOUsbHWBufferReq *bufreq = &ptd->ptd_BufferReq;
     *bufreq = rtn->rtn_BufferReq;
-    explicit_frame = (bufreq->ubr_Frame != 0);
+    explicit_frame = (rtn->rtn_Flags & RTISO_FLAG_EXPLICIT_FRAME) != 0;
+
+    if (urti && !explicit_frame)
+        bufreq->ubr_Frame = 0;
 
     if (urti) {
         if (ioreq->iouh_Dir == UHDIR_IN) {
