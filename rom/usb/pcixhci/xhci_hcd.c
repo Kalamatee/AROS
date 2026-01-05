@@ -72,8 +72,7 @@ static struct PCIController *xhciGetController(struct PCIUnit *unit)
     struct PCIController *hc;
 
     ForeachNode(&unit->hu_Controllers, hc) {
-        if (hc->hc_HCIType == HCITYPE_XHCI)
-            return hc;
+        return hc;
     }
 
     return NULL;
@@ -2852,9 +2851,6 @@ static AROS_INTH1(xhciIntCode, struct PCIController *, hc)
 
                 xhciDumpPort(&xhciports[hciport]);
                 origportsc = AROS_LE2LONG(xhciports[hciport].portsc);
-
-                /* reflect port ownership (shortcut without hc->hc_PortNum[evt->port]) */
-                hc->hc_Unit->hu_PortOwner[hciport] = HCITYPE_XHCI;
 
                 if (origportsc & XHCIF_PR_PORTSC_OCC) {
                     hc->hc_PortChangeMap[hciport] |= UPSF_PORT_OVER_CURRENT;

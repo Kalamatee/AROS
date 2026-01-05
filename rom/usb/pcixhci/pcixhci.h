@@ -137,7 +137,6 @@ struct PCIUnit
     UWORD                       hu_RootPortChanges;                 /* Merged root hub changes                                      */
     struct List                 hu_RHIOQueue;                       /* Root Hub Pending IO Requests                                 */
 
-    UBYTE                       hu_PortOwner[MAX_ROOT_PORTS];       /* contains the HCITYPE of the ports current owner              */
     UBYTE                       hu_ProductName[80];                 /* for Query device                                             */
     struct PCIController        *hu_DevControllers[USB_DEV_MAX];    /* maps from Device address to controller                       */
 
@@ -205,7 +204,6 @@ struct PCIController
 
     ULONG                       hc_DevID;
     UWORD                       hc_FunctionNum;
-    UWORD                       hc_HCIType;
     UWORD                       hc_NumPorts;
     UWORD                       hc_Flags;                           /* See below */
     ULONG                       hc_Quirks;                          /* See below */

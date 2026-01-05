@@ -35,18 +35,6 @@
 #define LogHandle (hd->hd_LogRHandle)
 #define LogResBase (base->hd_LogResBase)
 #endif
-static void handleQuirks(struct PCIController *hc)
-{
-    struct PCIDevice *hd = hc->hc_Device;
-    IPTR vendorid, productid;
-
-    hc->hc_Quirks = 0;
-    OOP_GetAttr(hc->hc_PCIDeviceObject, aHidd_PCIDevice_VendorID, &vendorid);
-    OOP_GetAttr(hc->hc_PCIDeviceObject, aHidd_PCIDevice_ProductID, &productid);
-    hc->hc_VendID = (UWORD)vendorid & 0xFFFF;
-    hc->hc_ProdID = (UWORD)productid & 0xFFFF;
-}
-
 AROS_UFH3(void, pciEnumerator,
           AROS_UFHA(struct Hook *, hook, A0),
           AROS_UFHA(OOP_Object *, pciDevice, A2),
@@ -61,6 +49,8 @@ AROS_UFH3(void, pciEnumerator,
     IPTR dev;
     IPTR sub;
     IPTR intline;
+    IPTR vendorid;
+    IPTR productid;
     ULONG devid;
 
     OOP_GetAttr(pciDevice, aHidd_PCIDevice_Interface, &hcitype);
@@ -90,10 +80,14 @@ AROS_UFH3(void, pciEnumerator,
                 hc->hc_Device = hd;
                 hc->hc_DevID = devid;
                 hc->hc_FunctionNum = sub;
-                hc->hc_HCIType = hcitype;
                 hc->hc_PCIDeviceObject = pciDevice;
                 hc->hc_PCIIntLine = intline;
                 hc->hc_PCIMemIsExec = FALSE;
+                hc->hc_Quirks = 0;
+                OOP_GetAttr(pciDevice, aHidd_PCIDevice_VendorID, &vendorid);
+                OOP_GetAttr(pciDevice, aHidd_PCIDevice_ProductID, &productid);
+                hc->hc_VendID = (UWORD)vendorid & 0xFFFF;
+                hc->hc_ProdID = (UWORD)productid & 0xFFFF;
 
                 OOP_GetAttr(pciDevice, aHidd_PCIDevice_Driver, (IPTR *) &hc->hc_PCIDriverObject);
 
@@ -128,8 +122,6 @@ AROS_UFH3(void, pciEnumerator,
 # endif
 #endif
                 AddTail(&hd->hd_TempHCIList, &hc->hc_Node);
-
-                handleQuirks(hc);
             } else {
                 pciusbDebug("PCI", "Failed to allocate storage for controller entry!\n");
             }
@@ -212,11 +204,6 @@ BOOL pciInit(struct PCIDevice *hd)
                 hu->hu_DevID = hc->hc_DevID;
 
             if (hc->hc_DevID == hu->hu_DevID) {
-                if ((hc->hc_HCIType != HCITYPE_XHCI) ||
-                    (!(hd->hd_Flags & HDF_ENABLEXHCI))) {
-                    continue;
-                }
-
                 Remove(&hc->hc_Node);
 
                 if ((usbContrClass) && (root)) {
@@ -232,7 +219,7 @@ BOOL pciInit(struct PCIDevice *hd)
                     int usb_min = -1, usb_maj = 3;
 
                     hc->hc_Node.ln_Name = AllocVec(16 + 34, MEMF_CLEAR);
-                    hc->hc_Node.ln_Pri = hc->hc_HCIType;
+                    hc->hc_Node.ln_Pri = HCITYPE_XHCI;
                     sprintf(hc->hc_Node.ln_Name, "pcixhci.device/%u", (hu->hu_UnitNo & ~PCIUSBUNIT_MASK));
                     usbc_tags[0].ti_Data = (IPTR)hc->hc_Node.ln_Name;
 
@@ -330,10 +317,6 @@ BOOL pciAllocUnit(struct PCIUnit *hu)
 
     hu->hu_RootHubXPorts = xhciports;
     hu->hu_RootHubPorts = xhciports;
-
-    for(cnt = 0; cnt < hu->hu_RootHubPorts; cnt++) {
-        hu->hu_PortOwner[cnt] = HCITYPE_XHCI;
-    }
 
     pciusbDebug("PCI", "Unit %ld: USB Board %08lx:\n", (hu->hu_UnitNo & ~PCIUSBUNIT_MASK), hu->hu_DevID);
     if (hu->hu_RootHubXPorts) {

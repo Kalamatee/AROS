@@ -840,7 +840,7 @@ WORD cmdControlXFerRootHub(struct IOUsbHWReq *ioreq,
 
                 /* Only make sense if we actually have an xHCI root */
                 hc = (struct PCIController *) unit->hu_Controllers.lh_Head;
-                if (!hc || hc->hc_HCIType != HCITYPE_XHCI)
+                if (!hc)
                     return UHIOERR_STALL;
 
 
