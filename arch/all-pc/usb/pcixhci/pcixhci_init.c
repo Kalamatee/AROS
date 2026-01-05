@@ -1,4 +1,4 @@
-/* pciusb_init.c - pciusb arch specific init code for AROS-pc
+/* pcixhci_init.c - pcixhci arch specific init code for AROS-pc
 */
 
 #include <aros/bootloader.h>
@@ -13,7 +13,7 @@
 #define __INLINE_ACPICA_STACKCALL__
 #include <proto/acpica.h>
 
-#include "pciusb.h"
+#include "pcixhci.h"
 
 /*
  * Process some AROS-specific arguments.

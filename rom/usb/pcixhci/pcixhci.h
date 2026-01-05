@@ -1,5 +1,5 @@
-#ifndef PCIUSB_H
-#define PCIUSB_H
+#ifndef PCIXHCI_H
+#define PCIXHCI_H
 
 /*
  *----------------------------------------------------------------------------
@@ -669,4 +669,4 @@ static inline APTR PCITOCPU(struct PCIController *hc, OOP_Object *o, APTR addres
 #define CPUTOPCI(hc, obj, pciaddress) HIDD_PCIDriver_CPUtoPCI(obj, pciaddress)
 #define PCITOCPU(hc, obj, pciaddress) HIDD_PCIDriver_PCItoCPU(obj, pciaddress)
 #endif
-#endif /* PCIUSB_H */
+#endif /* PCIXHCI_H */

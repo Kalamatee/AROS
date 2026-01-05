@@ -3,7 +3,7 @@
 
 #include "debug.h"
 #include "pci_aros.h"
-#include "pciusb.h"
+#include "pcixhci.h"
 
 #if (__WORDSIZE == 64)
 

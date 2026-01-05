@@ -1,7 +1,7 @@
 
 include $(SRCDIR)/config/aros.cfg
 
-ARCHFILES := pciusb_init
+ARCHFILES := pcixhci_init
 PCIXHCIDIR := rom/usb/pcixhci
 
 -include $(SRCDIR)/$(CURDIR)/make.opts

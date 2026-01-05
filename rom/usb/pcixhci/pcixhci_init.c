@@ -1,4 +1,4 @@
-/* pciusb_init.c - generic pciusb init code for AROS
+/* pcixhci_init.c - generic pcixhci init code for AROS
 */
 
 #include <aros/bootloader.h>
@@ -10,7 +10,7 @@
 
 #include <string.h>
 
-#include "pciusb.h"
+#include "pcixhci.h"
 
 /*
  * Process some AROS-specific arguments.

@@ -2,9 +2,9 @@
 include $(SRCDIR)/config/aros.cfg
 
 FILES := \
-        pciusb_init \
-        pciusb_arospci \
-        pciusb_dev \
+        pcixhci_init \
+        pcixhci_arospci \
+        pcixhci_dev \
         buffer \
         xhci_hcd \
         xhci_periodic \
