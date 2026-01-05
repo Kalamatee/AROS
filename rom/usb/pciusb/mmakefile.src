@@ -8,7 +8,11 @@ FILES := \
         buffer \
         ohci/ohcichip \
         uhci/uhcichip \
+        uhci/uhci_hcport \
+        uhci/uhci_isoch \
         ehci/ehcichip \
+        ehci/ehci_hcport \
+        ehci/ehci_isoch \
         xhci/xhcichip \
         xhci/xhcichip_periodic \
         xhci/xhcichip_isoch \
