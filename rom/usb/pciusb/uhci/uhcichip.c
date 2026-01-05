@@ -1803,12 +1803,17 @@ void uhciHandleIsochTDs(struct PCIController *hc)
 
             utd = (struct UhciTD *)ptd->ptd_Descriptor;
             interval = rtn->rtn_IOReq.iouh_Interval ? rtn->rtn_IOReq.iouh_Interval : 1;
-            if (current_frame > (ptd->ptd_FrameIdx + interval)) {
+            ULONG timeout_window = interval * 2;
+            if (timeout_window < 4)
+                timeout_window = 4;
+            if (current_frame > (ptd->ptd_FrameIdx + timeout_window)) {
                 error = TRUE;
                 ioreq->iouh_Req.io_Error = UHIOERR_TIMEOUT;
                 ioreq->iouh_Actual = 0;
                 ptd->ptd_BufferReq.ubr_Length = 0;
                 ptd->ptd_BufferReq.ubr_Frame = ptd->ptd_FrameIdx;
+                pciusbUHCIDebug("UHCI", "ISO TD timeout ptd=%p frame=%ld current=%ld window=%ld\n",
+                                ptd, ptd->ptd_FrameIdx, current_frame, timeout_window);
                 uhciUnlinkIsoPTD(hc, ptd);
                 if (urti) {
                     if (ioreq->iouh_Dir == UHDIR_IN) {
