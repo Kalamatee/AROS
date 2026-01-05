@@ -1802,63 +1802,65 @@ void uhciHandleIsochTDs(struct PCIController *hc)
                 continue;
 
             utd = (struct UhciTD *)ptd->ptd_Descriptor;
-            interval = rtn->rtn_IOReq.iouh_Interval ? rtn->rtn_IOReq.iouh_Interval : 1;
-            ULONG timeout_window = interval * 2;
-            if (timeout_window < 4)
-                timeout_window = 4;
-            if (current_frame > (ptd->ptd_FrameIdx + timeout_window)) {
-                error = TRUE;
-                ioreq->iouh_Req.io_Error = UHIOERR_TIMEOUT;
-                ioreq->iouh_Actual = 0;
-                ptd->ptd_BufferReq.ubr_Length = 0;
-                ptd->ptd_BufferReq.ubr_Frame = ptd->ptd_FrameIdx;
-                pciusbUHCIDebug("UHCI", "ISO TD timeout ptd=%p frame=%ld current=%ld window=%ld\n",
-                                ptd, ptd->ptd_FrameIdx, current_frame, timeout_window);
-                uhciUnlinkIsoPTD(hc, ptd);
-                if (urti) {
-                    if (ioreq->iouh_Dir == UHDIR_IN) {
-                        if (urti->urti_InDoneHook)
-                            CallHookPkt(urti->urti_InDoneHook, rtn, &ptd->ptd_BufferReq);
-                    } else {
-                        if (urti->urti_OutDoneHook)
-                            CallHookPkt(urti->urti_OutDoneHook, rtn, &ptd->ptd_BufferReq);
-                    }
-                }
-                ptd->ptd_Flags &= ~(PTDF_ACTIVE|PTDF_BUFFER_VALID);
-                if (utd) {
-                    uhciFreeTD(hc, utd);
-                    ptd->ptd_Descriptor = NULL;
-                }
-                if (rtn->rtn_StdReq) {
-                    UWORD devadrep = (ioreq->iouh_DevAddr << 5) + ioreq->iouh_Endpoint +
-                                     ((ioreq->iouh_Dir == UHDIR_IN) ? 0x10 : 0);
-                    Remove((struct Node *)&rtn->rtn_Node);
-                    unit->hu_DevBusyReq[devadrep] = NULL;
-                    ReplyMsg(&ioreq->iouh_Req.io_Message);
-                    uhciFreeIsochIO(hc, rtn);
-                    pciusbFreeStdIsoNode(hc, rtn);
-                } else if (urti) {
-                    UWORD pending = 0;
-                    UWORD target = (rtn->rtn_PTDCount > 1) ? 2 : 1;
-
-                    for (UWORD scan = 0; scan < rtn->rtn_PTDCount; scan++) {
-                        struct PTDNode *ptdscan = rtn->rtn_PTDs[scan];
-                        if (ptdscan && (ptdscan->ptd_Flags & (PTDF_ACTIVE | PTDF_BUFFER_VALID)))
-                            pending++;
-                    }
-
-                    while (pending < target) {
-                        if (uhciQueueIsochIO(hc, rtn) != RC_OK)
-                            break;
-                        uhciStartIsochIO(hc, rtn);
-                        pending++;
-                    }
-                }
-                continue;
-            }
             CacheClearE(utd, sizeof(*utd), CACRF_InvalidateD);
             ctrl = READMEM32_LE(&utd->utd_CtrlStatus);
             if(ctrl & UTCF_ACTIVE) {
+                interval = rtn->rtn_IOReq.iouh_Interval ? rtn->rtn_IOReq.iouh_Interval : 1;
+                ULONG timeout_window = interval * 2;
+
+                if (timeout_window < 4)
+                    timeout_window = 4;
+
+                if (current_frame > (ptd->ptd_FrameIdx + timeout_window)) {
+                    error = TRUE;
+                    ioreq->iouh_Req.io_Error = UHIOERR_TIMEOUT;
+                    ioreq->iouh_Actual = 0;
+                    ptd->ptd_BufferReq.ubr_Length = 0;
+                    ptd->ptd_BufferReq.ubr_Frame = ptd->ptd_FrameIdx;
+                    pciusbUHCIDebug("UHCI", "ISO TD timeout ptd=%p frame=%ld current=%ld window=%ld\n",
+                                    ptd, ptd->ptd_FrameIdx, current_frame, timeout_window);
+                    uhciUnlinkIsoPTD(hc, ptd);
+                    if (urti) {
+                        if (ioreq->iouh_Dir == UHDIR_IN) {
+                            if (urti->urti_InDoneHook)
+                                CallHookPkt(urti->urti_InDoneHook, rtn, &ptd->ptd_BufferReq);
+                        } else {
+                            if (urti->urti_OutDoneHook)
+                                CallHookPkt(urti->urti_OutDoneHook, rtn, &ptd->ptd_BufferReq);
+                        }
+                    }
+                    ptd->ptd_Flags &= ~(PTDF_ACTIVE|PTDF_BUFFER_VALID);
+                    if (utd) {
+                        uhciFreeTD(hc, utd);
+                        ptd->ptd_Descriptor = NULL;
+                    }
+                    if (rtn->rtn_StdReq) {
+                        UWORD devadrep = (ioreq->iouh_DevAddr << 5) + ioreq->iouh_Endpoint +
+                                         ((ioreq->iouh_Dir == UHDIR_IN) ? 0x10 : 0);
+                        Remove((struct Node *)&rtn->rtn_Node);
+                        unit->hu_DevBusyReq[devadrep] = NULL;
+                        ReplyMsg(&ioreq->iouh_Req.io_Message);
+                        uhciFreeIsochIO(hc, rtn);
+                        pciusbFreeStdIsoNode(hc, rtn);
+                    } else if (urti) {
+                        UWORD pending = 0;
+                        UWORD target = (rtn->rtn_PTDCount > 1) ? 2 : 1;
+
+                        for (UWORD scan = 0; scan < rtn->rtn_PTDCount; scan++) {
+                            struct PTDNode *ptdscan = rtn->rtn_PTDs[scan];
+                            if (ptdscan && (ptdscan->ptd_Flags & (PTDF_ACTIVE | PTDF_BUFFER_VALID)))
+                                pending++;
+                        }
+
+                        while (pending < target) {
+                            if (uhciQueueIsochIO(hc, rtn) != RC_OK)
+                                break;
+                            uhciStartIsochIO(hc, rtn);
+                            pending++;
+                        }
+                    }
+                    continue;
+                }
                 if (current_frame > ptd->ptd_FrameIdx) {
                     pciusbUHCIDebug("UHCI", "ISO TD still active ptd=%p frame=%ld current=%ld ctrl=%08lx\n",
                                     ptd, ptd->ptd_FrameIdx, current_frame, ctrl);
