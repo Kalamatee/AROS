@@ -70,8 +70,6 @@ AROS_UFH3(void, pciEnumerator,
     } else {
         switch (hcitype) {
         case HCITYPE_XHCI:
-            if (!(hd->hd_Flags & HDF_ENABLEXHCI))
-                break;
             pciusbDebug("PCI", "Setting up device...\n");
 
             hc = AllocPooled(hd->hd_MemPool, sizeof(struct PCIController));

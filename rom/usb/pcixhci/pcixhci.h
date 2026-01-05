@@ -299,12 +299,6 @@ struct PCIDevice
     struct List                 hd_Units;                           /* List of units */
 };
 
-/* hd_Flags */
-#define HDB_FORCEPOWER	                0
-#define HDF_FORCEPOWER	                (1 << HDB_FORCEPOWER)
-#define HDB_ENABLEXHCI	                1
-#define HDF_ENABLEXHCI	                (1 << HDB_ENABLEXHCI)
-
 /** OOP Related **/
 
 #if defined(__OOP_NOLIBBASE__)

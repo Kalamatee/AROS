@@ -50,22 +50,12 @@ static int getArguments(struct PCIDevice *base)
                 if (strncmp(node->ln_Name, "USB=", 4) == 0) {
                     const char *CmdLine = &node->ln_Name[3];
 
-                    if (strstr(CmdLine, "forcepower")) {
-                        base->hd_Flags |= HDF_FORCEPOWER;
-                        continue;
-                    }
-                    if (strstr(CmdLine, "xhci")) {
-                        base->hd_Flags |= HDF_ENABLEXHCI;
+                    if (strstr(CmdLine, "forcepower") || strstr(CmdLine, "xhci")) {
+                        pciusbDebug("", "Ignoring legacy USB boot argument: %s\n", CmdLine);
                     }
                 }
             }
         }
-    }
-    if (base->hd_Flags & HDF_FORCEPOWER) {
-        pciusbInfo("", "Forcing USB Power\n");
-    }
-    if (base->hd_Flags & HDF_ENABLEXHCI) {
-        pciusbInfo("", "Enabling experimental XHCI code\n");
     }
     return TRUE;
 }
