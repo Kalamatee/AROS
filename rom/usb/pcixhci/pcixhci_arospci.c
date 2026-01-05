@@ -37,6 +37,7 @@
 #endif
 static void handleQuirks(struct PCIController *hc)
 {
+    struct PCIDevice *hd = hc->hc_Device;
     IPTR vendorid, productid;
 
     hc->hc_Quirks = 0;

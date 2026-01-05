@@ -195,7 +195,7 @@ ADD2EXPUNGELIB(devExpunge, 0)
  */
 AROS_LH1(void, devBeginIO,
          AROS_LHA(struct IOUsbHWReq *, ioreq, A1),
-         LIBBASETYPEPTR, base, 5, pciusb)
+         LIBBASETYPEPTR, base, 5, pcixhci)
 {
     AROS_LIBFUNC_INIT
 
@@ -313,7 +313,7 @@ AROS_LH1(void, devBeginIO,
  */
 AROS_LH1(LONG, devAbortIO,
          AROS_LHA(struct IOUsbHWReq *, ioreq, A1),
-         LIBBASETYPEPTR, base, 6, pciusb)
+         LIBBASETYPEPTR, base, 6, pcixhci)
 {
     AROS_LIBFUNC_INIT
 
