@@ -47,11 +47,11 @@
 #define XHCI_CMDFAIL_LOGGING 1
 #endif
 
-static const char xhciCompleteIntName[] = "xHCI CompleteInt";
-static const char xhciResetIntName[] = "xHCI PCI (pcixhci.device)";
-static const char xhciEndpointTimerName[] = "xHCI endpoint";
-static const char xhciEventRingTaskNameFmt[] = "usbhw<pcixhci.device/%ld> Event Ring Task";
-static const char xhciPortTaskNameFmt[] = "usbhw<pcixhci.device/%ld> Port Task";
+static char xhciCompleteIntName[] = "xHCI CompleteInt";
+static char xhciResetIntName[] = "xHCI PCI (pcixhci.device)";
+static char xhciEndpointTimerName[] = "xHCI endpoint";
+static char xhciEventRingTaskNameFmt[] = "usbhw<pcixhci.device/%ld> Event Ring Task";
+static char xhciPortTaskNameFmt[] = "usbhw<pcixhci.device/%ld> Port Task";
 
 static void xhciFreeEndpointContext(struct PCIController *hc,
                                     struct pciusbXHCIDevice *devCtx,
