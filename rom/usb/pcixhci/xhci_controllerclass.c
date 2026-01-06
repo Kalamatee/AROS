@@ -11,9 +11,16 @@
 #include <oop/oop.h>
 #include <utility/tagitem.h>
 
+#include <string.h>
+
 #include "uhwcmd.h"
 #include "xhciproto.h"
 #include "pcixhci.h"
+
+#ifdef base
+#undef base
+#endif
+#define base (hc->hc_Device)
 
 static BOOL xhciControllerInit(struct PCIController *hc)
 {
