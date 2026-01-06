@@ -283,7 +283,11 @@ static void pciusbAppendVersion(STRPTR dest, UBYTE major, UBYTE minor)
     STRPTR vers = pciStrcat(dest, "");
     vers[0] = (char)('0' + (major % 10));
     vers[1] = '.';
-    vers[2] = (char)('0' + (minor % 10));
+    if (minor == 0xFF) {
+        vers[2] = 'x';
+    } else {
+        vers[2] = (char)('0' + (minor % 10));
+    }
     vers[3] = 0;
 }
 
