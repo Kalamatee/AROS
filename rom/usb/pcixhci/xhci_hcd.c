@@ -3441,7 +3441,7 @@ BOOL xhciInit(struct PCIController *hc, struct PCIUnit *hu,
     hc->hc_CPrivate = xhcic;
 
     hc->hc_CompleteInt.is_Node.ln_Type = NT_INTERRUPT;
-    hc->hc_CompleteInt.is_Node.ln_Name = "XHCI CompleteInt";
+    hc->hc_CompleteInt.is_Node.ln_Name = "xHCI CompleteInt";
     hc->hc_CompleteInt.is_Node.ln_Pri  = 0;
     hc->hc_CompleteInt.is_Data = hc;
     hc->hc_CompleteInt.is_Code = (VOID_FUNC)xhciCompleteInt;
@@ -3503,7 +3503,7 @@ BOOL xhciInit(struct PCIController *hc, struct PCIUnit *hu,
             if (xhciUSBLegSup & XHCIF_USBLEGSUP_BIOSOWNED) {
                 ULONG ownershipval = xhciUSBLegSup | XHCIF_USBLEGSUP_OSOWNED;
 
-                pciusbXHCIDebug("xHCI", DEBUGCOLOR_SET "Taking ownership of XHCI from BIOS" DEBUGCOLOR_RESET" \n");
+                pciusbXHCIDebug("xHCI", DEBUGCOLOR_SET "Taking ownership of xHCI from BIOS" DEBUGCOLOR_RESET" \n");
 takeownership:
                 cnt = 100;
                 /*
@@ -3522,7 +3522,7 @@ takeownership:
                 }
                 if ((ownershipval != XHCIF_USBLEGSUP_OSOWNED) &&
                     (AROS_LE2LONG(*capreg) & XHCIF_USBLEGSUP_BIOSOWNED)) {
-                    pciusbXHCIDebug("xHCI", DEBUGCOLOR_SET "Ownership of XHCI still with BIOS" DEBUGCOLOR_RESET" \n");
+                    pciusbXHCIDebug("xHCI", DEBUGCOLOR_SET "Ownership of xHCI still with BIOS" DEBUGCOLOR_RESET" \n");
 
                     /* Try to force ownership */
                     ownershipval = XHCIF_USBLEGSUP_OSOWNED;
@@ -3531,7 +3531,7 @@ takeownership:
             } else if (xhciUSBLegSup & XHCIF_USBLEGSUP_OSOWNED) {
                 pciusbXHCIDebug("xHCI", DEBUGCOLOR_SET "Ownership already with OS!" DEBUGCOLOR_RESET" \n");
             } else {
-                pciusbXHCIDebug("xHCI", DEBUGCOLOR_SET "Forcing ownership of XHCI from (unknown)" DEBUGCOLOR_RESET" \n");
+                pciusbXHCIDebug("xHCI", DEBUGCOLOR_SET "Forcing ownership of xHCI from (unknown)" DEBUGCOLOR_RESET" \n");
                 /* Try to force ownership */
                 *capreg = AROS_LONG2LE(XHCIF_USBLEGSUP_OSOWNED);
                 (void)*capreg;
@@ -3545,7 +3545,8 @@ takeownership:
             ULONG capprot = AROS_LE2LONG(*(capreg + 1));
             ULONG capports = AROS_LE2LONG(*(capreg + 2));
             UBYTE major = (capprot >> XHCIS_XCP_REV_MAJOR) & XHCI_XCP_REV_MAJOR_MASK;
-            UBYTE minor = (capprot >> XHCIS_XCP_REV_MINOR) & XHCI_XCP_REV_MINOR_MASK;
+            UBYTE minor_bcd = (capprot >> XHCIS_XCP_REV_MINOR) & XHCI_XCP_REV_MINOR_MASK;
+            UBYTE minor = (minor_bcd >> 4) & 0x0F;
             UWORD name = (UWORD)(capprot & XHCI_XCP_NAMESTRING_MASK);
             UBYTE portOffset = (capports >> XHCIS_XCP_PORT_OFFSET) & XHCI_XCP_PORT_OFFSET_MASK;
             UBYTE portCount = (capports >> XHCIS_XCP_PORT_COUNT) & XHCI_XCP_PORT_COUNT_MASK;
@@ -3779,7 +3780,7 @@ takeownership:
     }
 
     /* install reset handler */
-        hc->hc_ResetInt.is_Node.ln_Name = "XHCI PCI (pcixhci.device)";
+        hc->hc_ResetInt.is_Node.ln_Name = "xHCI PCI (pcixhci.device)";
     hc->hc_ResetInt.is_Code = (VOID_FUNC)XhciResetHandler;
     hc->hc_ResetInt.is_Data = hc;
     AddResetCallback(&hc->hc_ResetInt);

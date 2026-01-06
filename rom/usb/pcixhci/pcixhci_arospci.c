@@ -213,7 +213,7 @@ BOOL pciInit(struct PCIDevice *hd)
                         {aHidd_DriverData,          0               },
                         {TAG_DONE,                  0               }
                     };
-                    char *usb_chipset = "XHCI";
+                    char *usb_chipset = "xHCI";
                     int usb_min = -1, usb_maj = 3;
 
                     hc->hc_Node.ln_Name = AllocVec(16 + 34, MEMF_CLEAR);
@@ -304,7 +304,7 @@ BOOL pciAllocUnit(struct PCIUnit *hu)
         // allocate necessary memory
         ForeachNode(&hu->hu_Controllers, hc) {
             if(xhciports) {
-                pciusbWarn("PCI", "More than one XHCI controller per board?!?\n");
+                pciusbWarn("PCI", "More than one xHCI controller per board?!?\n");
             }
             allocgood = xhciInit(hc, hu, hu->hu_TimerReq);
             if(allocgood) {
@@ -353,7 +353,7 @@ BOOL pciAllocUnit(struct PCIUnit *hu)
     prodname = hu->hu_ProductName;
     *prodname = 0;
     pciStrcat(prodname, "PCI ");
-    pciStrcat(prodname, "XHCI ");
+    pciStrcat(prodname, "xHCI ");
     pciusbAppendVersion(prodname, hciMajor, hciMinor);
 
     // put em online

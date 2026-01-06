@@ -657,7 +657,7 @@ WORD cmdControlXFerRootHub(struct IOUsbHWReq *ioreq,
                     usdd->idProduct = WORD2LE(hc->hc_ProdID);
 
                     if(unit->hu_RootHubXPorts) {
-                        pciusbRHDebug("RH", "XHCI (USB3) Hub Descriptor\n");
+                        pciusbRHDebug("RH", "xHCI (USB3) Hub Descriptor\n");
                         usdd->bcdUSB         = AROS_WORD2LE(0x0300);  /* USB 3.0 */
                         usdd->bDeviceClass   = HUB_CLASSCODE;        /* 9 */
                         usdd->bDeviceSubClass= 0;
@@ -682,7 +682,7 @@ WORD cmdControlXFerRootHub(struct IOUsbHWReq *ioreq,
                         sizeof(struct UsbStdEPDesc));
                 {
                     struct UsbStdEPDesc *usepd = (struct UsbStdEPDesc *) &tmpbuf[sizeof(struct UsbStdCfgDesc) + sizeof(struct UsbStdIfDesc)];
-                    pciusbRHDebug("RH", "XHCI EndPoint Config\n");
+                    pciusbRHDebug("RH", "xHCI EndPoint Config\n");
                     usepd->bInterval = 12; // * 1ms, or 125 microseconds, = 2048 microframes
                     usepd->wMaxPacketSize = AROS_WORD2LE(64);
                 }
@@ -763,7 +763,7 @@ WORD cmdControlXFerRootHub(struct IOUsbHWReq *ioreq,
             }
             hc = unit->hu_PortMapX[idx - 1];
             hciport = idx - 1;
-            pciusbRHDebug("RH", "Set Feature %ld maps from glob. Port %ld to local Port %ld (XHCI)\n", val, idx, hciport);
+            pciusbRHDebug("RH", "Set Feature %ld maps from glob. Port %ld to local Port %ld (xHCI)\n", val, idx, hciport);
             if (xhciSetFeature(unit, hc, hciport, idx, val, &retval)) {
                 pciusbRHDebug("RH", "xhciSetFeature returned (retval %04x)\n", retval);
                 return(retval);
@@ -779,7 +779,7 @@ WORD cmdControlXFerRootHub(struct IOUsbHWReq *ioreq,
             }
             hc = unit->hu_PortMapX[idx - 1];
             hciport = idx - 1;
-            pciusbRHDebug("RH", "Clear Feature %ld maps from glob. Port %ld to local Port %ld (XHCI)\n", val, idx, hciport);
+            pciusbRHDebug("RH", "Clear Feature %ld maps from glob. Port %ld to local Port %ld (xHCI)\n", val, idx, hciport);
             if (xhciClearFeature(unit, hc, hciport, idx, val, &retval)) {
                 pciusbRHDebug("RH", "xhciClearFeature returned (retval %04x)\n", retval);
                 return(retval);
@@ -1910,7 +1910,7 @@ AROS_INTH1(uhwNakTimeoutInt, struct PCIUnit *,  unit)
                                 devadrep = (ioreq->iouh_DevAddr<<5) + ioreq->iouh_Endpoint + ((ioreq->iouh_Dir == UHDIR_IN) ? 0x10 : 0);
                                 if(framecnt > unit->hu_NakTimeoutFrame[devadrep]) {
                                     // give the thing the chance to exit gracefully
-                                    KPRINTF(200, "XHCI: HC 0x%p NAK timeout %ld, IOReq=%p\n", hc, unit->hu_NakTimeoutFrame[devadrep], ioreq);
+                                    KPRINTF(200, "xHCI: HC 0x%p NAK timeout %ld, IOReq=%p\n", hc, unit->hu_NakTimeoutFrame[devadrep], ioreq);
                                     causeint = TRUE;
                                 }
                             }
@@ -1919,7 +1919,7 @@ AROS_INTH1(uhwNakTimeoutInt, struct PCIUnit *,  unit)
                         // Timeout failed pending transfers
                         devadrep = (ioreq->iouh_DevAddr<<5) + ioreq->iouh_Endpoint + ((ioreq->iouh_Dir == UHDIR_IN) ? 0x10 : 0);
                         if ((unit->hu_NakTimeoutFrame[devadrep]) && (framecnt > unit->hu_NakTimeoutFrame[devadrep])) {
-                            KPRINTF(200, "XHCI: HC 0x%p NAK timeout %ld, IOReq=%p\n", hc, unit->hu_NakTimeoutFrame[devadrep], ioreq);
+                            KPRINTF(200, "xHCI: HC 0x%p NAK timeout %ld, IOReq=%p\n", hc, unit->hu_NakTimeoutFrame[devadrep], ioreq);
                             ioreq->iouh_Req.io_Error = UHIOERR_NAKTIMEOUT;
                             xhciAbortRequest(hc, ioreq);
                         } else if (unit->hu_NakTimeoutFrame[devadrep])
