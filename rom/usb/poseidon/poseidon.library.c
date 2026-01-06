@@ -2821,7 +2821,7 @@ static void DumpPipe(struct PsdPipe *pp)
  * Map BOS-derived capabilities into poseidons hardware structure.
   */
 static void
-pUpdateDeviceFromBos(struct PsdDevice *pd, const struct PsdBosCaps *caps)
+pApplyDeviceBosCapabilities(struct PsdDevice *pd, const struct PsdBosCaps *caps)
 {
     if (!pd || !caps || !caps->hasBos)
         return;
@@ -3329,7 +3329,7 @@ AROS_LH1(struct PsdDevice *, psdEnumerateDevice,
     if (pd->pd_USBVers > 0x0200) {
         struct PsdBosCaps boscaps;
         if (pFetchBosCaps(pp, &boscaps)) {
-            pUpdateDeviceFromBos(pd, &boscaps);
+            pApplyDeviceBosCapabilities(pd, &boscaps);
         }
     }
 
