@@ -38,20 +38,13 @@ static BOOL xhciControllerInit(struct PCIController *hc)
         { TAG_DONE, 0UL },
     };
 
-    struct Library *ps;
-    if ((ps = OpenLibrary("poseidon.library", 5)) == NULL) {
-        return FALSE;
-    }
-
     if (!xhciOpenTaskTimer(&timerport, &timerreq, "xHCI init")) {
-        CloseLibrary(ps);
         return FALSE;
     }
 
     xhcic = AllocMem(sizeof(*xhcic), MEMF_CLEAR);
     if (!xhcic) {
         xhciCloseTaskTimer(&timerport, &timerreq);
-        CloseLibrary(ps);
         return FALSE;
     }
     hc->hc_CPrivate = xhcic;
