@@ -14,7 +14,7 @@
 
 #include "uhwcmd.h"
 #include "xhciproto.h"
-#include "xhcichip_schedule.h"
+#include "xhci_schedule.h"
 
 #if defined(DEBUG) && defined(XHCI_LONGDEBUGNAK)
 #define XHCI_NAKTOSHIFT         (8)
@@ -144,4 +144,3 @@ void xhciScheduleIntTDs(struct PCIController *hc)
         }
     }
 }
-
