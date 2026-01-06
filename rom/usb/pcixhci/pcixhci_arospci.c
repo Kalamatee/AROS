@@ -36,10 +36,8 @@
 #define LogResBase (base->hd_LogResBase)
 #endif
 
-static const char xhciChipsetName[] = "xHCI";
 static const char xhciDriverPrefix[] = "pcixhci.device/";
-static const char xhciHardwareNameFmtUnknownMinor[] = "PCI USB %u.x %s Host controller";
-static const char xhciHardwareNameFmt[] = "PCI USB %u.%u %s Host controller";
+static const char xhciHardwareNameFmt[] = "PCI USB %s xHCI Host controller";
 AROS_UFH3(void, pciEnumerator,
           AROS_UFHA(struct Hook *, hook, A0),
           AROS_UFHA(OOP_Object *, pciDevice, A2),
@@ -218,21 +216,20 @@ BOOL pciInit(struct PCIDevice *hd)
                         {aHidd_DriverData,          0               },
                         {TAG_DONE,                  0               }
                     };
-                    const char *usb_chipset = xhciChipsetName;
                     int usb_min = -1, usb_maj = 3;
                     size_t driver_len;
                     size_t hardware_len;
+                    char version_buf[8];
                     char *hardware_name;
 
                     driver_len = snprintf(NULL, 0, "%s%u", xhciDriverPrefix,
                                           (hu->hu_UnitNo & ~PCIUSBUNIT_MASK));
                     if (usb_min < 0) {
-                        hardware_len = snprintf(NULL, 0, xhciHardwareNameFmtUnknownMinor,
-                                                usb_maj, usb_chipset);
+                        snprintf(version_buf, sizeof(version_buf), "%u.x", usb_maj);
                     } else {
-                        hardware_len = snprintf(NULL, 0, xhciHardwareNameFmt,
-                                                usb_maj, usb_min, usb_chipset);
+                        snprintf(version_buf, sizeof(version_buf), "%u.%u", usb_maj, usb_min);
                     }
+                    hardware_len = snprintf(NULL, 0, xhciHardwareNameFmt, version_buf);
 
                     hc->hc_Node.ln_Name = AllocVec(driver_len + 1 + hardware_len + 1, MEMF_CLEAR);
                     hc->hc_Node.ln_Pri = HCITYPE_XHCI;
@@ -243,13 +240,7 @@ BOOL pciInit(struct PCIDevice *hd)
                     hardware_name = &hc->hc_Node.ln_Name[driver_len + 1];
                     usbc_tags[1].ti_Data = (IPTR)hardware_name;
 
-                    if (usb_min < 0) {
-                        snprintf(hardware_name, hardware_len + 1,
-                                 xhciHardwareNameFmtUnknownMinor, usb_maj, usb_chipset);
-                    } else {
-                        snprintf(hardware_name, hardware_len + 1,
-                                 xhciHardwareNameFmt, usb_maj, usb_min, usb_chipset);
-                    }
+                    snprintf(hardware_name, hardware_len + 1, xhciHardwareNameFmt, version_buf);
 
                     HW_AddDriver(root, usbContrClass, usbc_tags);
                 }
