@@ -3561,6 +3561,10 @@ takeownership:
             if (minor == 0) {
                 minor = (minor_bcd >> 4) & 0x0F;
             }
+            if (minor == 0 && major > 9) {
+                minor = major & 0x0F;
+                major = (major >> 4) & 0x0F;
+            }
             UWORD name = (UWORD)(capprot & XHCI_XCP_NAMESTRING_MASK);
             UBYTE portOffset = (capports >> XHCIS_XCP_PORT_OFFSET) & XHCI_XCP_PORT_OFFSET_MASK;
             UBYTE portCount = (capports >> XHCIS_XCP_PORT_COUNT) & XHCI_XCP_PORT_COUNT_MASK;

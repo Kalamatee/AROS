@@ -228,6 +228,10 @@ BOOL pciInit(struct PCIDevice *hd)
                         if (usb_min == 0xFF) {
                             usb_min = -1;
                         }
+                        if (usb_min == 0 && usb_maj > 9) {
+                            usb_min = usb_maj & 0x0F;
+                            usb_maj = (usb_maj >> 4) & 0x0F;
+                        }
                     }
 
                     driver_len = snprintf(NULL, 0, "%s%u", xhciDriverPrefix,
