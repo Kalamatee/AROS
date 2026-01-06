@@ -84,6 +84,8 @@ AROS_UFH3(void, pciEnumerator,
                 hc->hc_PCIDeviceObject = pciDevice;
                 hc->hc_PCIIntLine = intline;
                 hc->hc_PCIMemIsExec = FALSE;
+                hc->hc_USBVersionMajor = 0;
+                hc->hc_USBVersionMinor = 0;
                 hc->hc_Quirks = 0;
                 OOP_GetAttr(pciDevice, aHidd_PCIDevice_VendorID, &vendorid);
                 OOP_GetAttr(pciDevice, aHidd_PCIDevice_ProductID, &productid);
@@ -227,10 +229,6 @@ BOOL pciInit(struct PCIDevice *hd)
                         usb_min = hc->hc_USBVersionMinor;
                         if (usb_min == 0xFF) {
                             usb_min = -1;
-                        }
-                        if (usb_min == 0 && usb_maj > 9) {
-                            usb_min = usb_maj & 0x0F;
-                            usb_maj = (usb_maj >> 4) & 0x0F;
                         }
                     }
 

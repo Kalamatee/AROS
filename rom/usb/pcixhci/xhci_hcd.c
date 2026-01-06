@@ -3556,14 +3556,10 @@ takeownership:
             ULONG capports = AROS_LE2LONG(*(capreg + 2));
             UBYTE major = (capprot >> XHCIS_XCP_REV_MAJOR) & XHCI_XCP_REV_MAJOR_MASK;
             UBYTE minor_bcd = (capprot >> XHCIS_XCP_REV_MINOR) & XHCI_XCP_REV_MINOR_MASK;
-            UBYTE minor = minor_bcd & 0x0F;
+            UBYTE minor = (minor_bcd >> 4) & 0x0F;
 
             if (minor == 0) {
-                minor = (minor_bcd >> 4) & 0x0F;
-            }
-            if (minor == 0 && major > 9) {
-                minor = major & 0x0F;
-                major = (major >> 4) & 0x0F;
+                minor = minor_bcd & 0x0F;
             }
             UWORD name = (UWORD)(capprot & XHCI_XCP_NAMESTRING_MASK);
             UBYTE portOffset = (capports >> XHCIS_XCP_PORT_OFFSET) & XHCI_XCP_PORT_OFFSET_MASK;
