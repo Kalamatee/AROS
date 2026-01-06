@@ -3416,6 +3416,10 @@ BOOL xhciInit(struct PCIController *hc, struct PCIUnit *hu,
     ULONG cnt;
     UBYTE usbMajor = 0;
     UBYTE usbMinor = 0;
+    UBYTE usb2Major = 0;
+    UBYTE usb2Minor = 0;
+    UBYTE usb3Major = 0;
+    UBYTE usb3Minor = 0;
 
     struct TagItem pciMemEnableAttrs[] = {
         { aHidd_PCIDevice_isMEM,    TRUE },
@@ -3546,7 +3550,11 @@ takeownership:
             ULONG capports = AROS_LE2LONG(*(capreg + 2));
             UBYTE major = (capprot >> XHCIS_XCP_REV_MAJOR) & XHCI_XCP_REV_MAJOR_MASK;
             UBYTE minor_bcd = (capprot >> XHCIS_XCP_REV_MINOR) & XHCI_XCP_REV_MINOR_MASK;
-            UBYTE minor = (minor_bcd >> 4) & 0x0F;
+            UBYTE minor = minor_bcd & 0x0F;
+
+            if (minor == 0) {
+                minor = (minor_bcd >> 4) & 0x0F;
+            }
             UWORD name = (UWORD)(capprot & XHCI_XCP_NAMESTRING_MASK);
             UBYTE portOffset = (capports >> XHCIS_XCP_PORT_OFFSET) & XHCI_XCP_PORT_OFFSET_MASK;
             UBYTE portCount = (capports >> XHCIS_XCP_PORT_COUNT) & XHCI_XCP_PORT_COUNT_MASK;
@@ -3560,9 +3568,16 @@ takeownership:
                             portOffset,
                             (UWORD)(portOffset + portCount - 1));
 
-            if ((major > usbMajor) || ((major == usbMajor) && (minor > usbMinor))) {
-                usbMajor = major;
-                usbMinor = minor;
+            if (major >= XHCI_PORT_PROTOCOL_USB3) {
+                if ((major > usb3Major) || ((major == usb3Major) && (minor > usb3Minor))) {
+                    usb3Major = major;
+                    usb3Minor = minor;
+                }
+            } else if (major == XHCI_PORT_PROTOCOL_USB2) {
+                if ((major > usb2Major) || ((major == usb2Major) && (minor > usb2Minor))) {
+                    usb2Major = major;
+                    usb2Minor = minor;
+                }
             }
 
             if (portOffset > 0 && portCount > 0) {
@@ -3597,6 +3612,13 @@ takeownership:
     pciusbXHCIDebug("xHCI", DEBUGCOLOR_SET "  HCIVERSION: 0x%04x" DEBUGCOLOR_RESET" \n", xhciversion);
     hc->hc_HCIVersionMajor = (UBYTE)((xhciversion >> 8) & 0xFF);
     hc->hc_HCIVersionMinor = (UBYTE)((xhciversion >> 4) & 0x0F);
+    if (usb3Major > 0) {
+        usbMajor = usb3Major;
+        usbMinor = usb3Minor;
+    } else {
+        usbMajor = usb2Major;
+        usbMinor = usb2Minor;
+    }
     hc->hc_USBVersionMajor = usbMajor;
     hc->hc_USBVersionMinor = usbMinor;
     if (xhciversion == 0x0090)

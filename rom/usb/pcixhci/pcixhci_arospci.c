@@ -213,22 +213,40 @@ BOOL pciInit(struct PCIDevice *hd)
                         {aHidd_DriverData,          0               },
                         {TAG_DONE,                  0               }
                     };
-                    char *usb_chipset = "xHCI";
+                    const char *usb_chipset = "xHCI";
+                    const char *driver_prefix = "pcixhci.device/";
                     int usb_min = -1, usb_maj = 3;
+                    size_t driver_len;
+                    size_t hardware_len;
+                    char *hardware_name;
 
-                    hc->hc_Node.ln_Name = AllocVec(16 + 34, MEMF_CLEAR);
+                    driver_len = snprintf(NULL, 0, "%s%u", driver_prefix,
+                                          (hu->hu_UnitNo & ~PCIUSBUNIT_MASK));
+                    hardware_len = snprintf(NULL, 0, "PCI USB %u.%s %s Host controller",
+                                            usb_maj,
+                                            (usb_min < 0) ? "x" : "",
+                                            usb_chipset);
+                    if (usb_min >= 0) {
+                        hardware_len = snprintf(NULL, 0, "PCI USB %u.%u %s Host controller",
+                                                usb_maj, usb_min, usb_chipset);
+                    }
+
+                    hc->hc_Node.ln_Name = AllocVec(driver_len + 1 + hardware_len + 1, MEMF_CLEAR);
                     hc->hc_Node.ln_Pri = HCITYPE_XHCI;
-                    sprintf(hc->hc_Node.ln_Name, "pcixhci.device/%u", (hu->hu_UnitNo & ~PCIUSBUNIT_MASK));
+                    snprintf(hc->hc_Node.ln_Name, driver_len + 1, "%s%u", driver_prefix,
+                             (hu->hu_UnitNo & ~PCIUSBUNIT_MASK));
                     usbc_tags[0].ti_Data = (IPTR)hc->hc_Node.ln_Name;
 
-                    usbc_tags[1].ti_Data = (IPTR)&hc->hc_Node.ln_Name[16];
+                    hardware_name = &hc->hc_Node.ln_Name[driver_len + 1];
+                    usbc_tags[1].ti_Data = (IPTR)hardware_name;
 
-                    sprintf((char *)usbc_tags[1].ti_Data, "PCI USB %u.",  usb_maj);
-                    if (usb_min < 0)
-                        sprintf((char *)(usbc_tags[1].ti_Data + 10), "x");
-                    else
-                        sprintf((char *)(usbc_tags[1].ti_Data + 10), "%u", usb_min);
-                    sprintf((char *)(usbc_tags[1].ti_Data + 11), " %s Host controller",  usb_chipset);
+                    if (usb_min < 0) {
+                        snprintf(hardware_name, hardware_len + 1,
+                                 "PCI USB %u.x %s Host controller", usb_maj, usb_chipset);
+                    } else {
+                        snprintf(hardware_name, hardware_len + 1,
+                                 "PCI USB %u.%u %s Host controller", usb_maj, usb_min, usb_chipset);
+                    }
 
                     HW_AddDriver(root, usbContrClass, usbc_tags);
                 }
