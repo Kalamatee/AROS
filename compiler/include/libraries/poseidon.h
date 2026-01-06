@@ -208,6 +208,8 @@
 #define EA_MaxBurst          (EA_Dummy + 0x18)
 #define EA_BytesPerInterval  (EA_Dummy + 0x19)
 #define EA_CompAttributes    (EA_Dummy + 0x1a)
+#define EA_StreamBase        (EA_Dummy + 0x1b)
+#define EA_MaxStreams        (EA_Dummy + 0x1c)
 
 /* Tags for psdGetAttrs(PGA_PIPE,...) */
 #define PPA_Dummy            (TAG_USER  + 1234)

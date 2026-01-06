@@ -58,7 +58,6 @@
     /* Topology */                                                                                                                                    \
     ULONG               iouh_RouteString;       /* 20-bit USB3 route string                                                                         */\
     /* Optional fields */                                                                                                                             \
-    UWORD               iouh_MaxStreams;        /* 0 = no streams                                                                                   */\
     UWORD               iouh_StreamID;          /* per-transfer (usually)                                                                           */\
     UWORD               iouh_PowerPolicy        /* link power / policy hints                                                                        */
 

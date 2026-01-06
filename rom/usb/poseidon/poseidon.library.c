@@ -1242,12 +1242,35 @@ AROS_LH3(LONG, psdSetAttrsA,
         checkcfgupdate = TRUE;
         break;
 
+    case PGA_ENDPOINT: {
+        struct PsdEndpoint *pep = (struct PsdEndpoint *) psdstruct;
+        UWORD maxstreams;
+
+        count += PackStructureTags(psdstruct, packtab, tags);
+        maxstreams = pGetMaxStreamsForEndpoint(pep);
+        pep->pep_MaxStreams = maxstreams;
+        if (!maxstreams && pep->pep_StreamBase) {
+            psdAddErrorMsg0(RETURN_WARN, (STRPTR) GM_UNIQUENAME(libname),
+                            "Stream base requested for endpoint without USB3 stream support.");
+            pep->pep_StreamBase = 0;
+        } else if (maxstreams && pep->pep_StreamBase > maxstreams) {
+            psdAddErrorMsg(RETURN_WARN, (STRPTR) GM_UNIQUENAME(libname),
+                           "Stream base %ld exceeds max streams %ld; disabling stream IDs.",
+                           pep->pep_StreamBase, maxstreams);
+            pep->pep_StreamBase = 0;
+        }
+
+        return((LONG) count);
+    }
+
     case PGA_PIPESTREAM: {
         struct PsdPipeStream *pps = (struct PsdPipeStream *) psdstruct;
         struct PsdPipe *pp;
         ULONG oldbufsize = pps->pps_BufferSize;
         ULONG oldnumpipes = pps->pps_NumPipes;
         ULONG cnt;
+        UWORD maxstreams;
+        UWORD streambase;
 
         KPRINTF(1, ("SetAttrs PIPESTREAM\n"));
         ObtainSemaphore(&pps->pps_AccessLock);
@@ -1263,6 +1286,29 @@ AROS_LH3(LONG, psdSetAttrsA,
         count += PackStructureTags(psdstruct, packtab, tags);
         KPRINTF(1, ("Pipes = %ld (old: %ld), BufferSize = %ld (old: %ld)\n",
                     pps->pps_NumPipes, oldnumpipes, pps->pps_BufferSize, oldbufsize));
+
+        maxstreams = pGetMaxStreamsForEndpoint(pps->pps_Endpoint);
+        streambase = pps->pps_Endpoint->pep_StreamBase;
+        if (streambase) {
+            if (!maxstreams) {
+                psdAddErrorMsg0(RETURN_WARN, (STRPTR) GM_UNIQUENAME(libname),
+                                "Stream IDs requested but endpoint does not support USB3 streams.");
+                streambase = 0;
+            } else if (streambase > maxstreams) {
+                psdAddErrorMsg(RETURN_WARN, (STRPTR) GM_UNIQUENAME(libname),
+                               "Stream base %ld exceeds max streams %ld; disabling stream IDs.",
+                               streambase, maxstreams);
+                streambase = 0;
+            } else {
+                UWORD usable = (UWORD)(maxstreams - streambase + 1);
+                if (pps->pps_NumPipes > usable) {
+                    psdAddErrorMsg(RETURN_WARN, (STRPTR) GM_UNIQUENAME(libname),
+                                   "Stream pipe count %ld exceeds available streams %ld; capping.",
+                                   pps->pps_NumPipes, usable);
+                    pps->pps_NumPipes = usable;
+                }
+            }
+        }
         if(pps->pps_NumPipes < 1) {
             pps->pps_NumPipes = 1; /* minimal */
         }
@@ -1312,6 +1358,11 @@ AROS_LH3(LONG, psdSetAttrsA,
                     pp = psdAllocPipe(pps->pps_Device, pps->pps_MsgPort, pps->pps_Endpoint);
                     if((pps->pps_Pipes[cnt] = pp)) {
                         pp->pp_Num = cnt;
+                        if (streambase && maxstreams) {
+                            pp->pp_StreamID = (UWORD)(streambase + cnt);
+                        } else {
+                            pp->pp_StreamID = 0;
+                        }
                         if(pps->pps_Flags & PSFF_NOSHORTPKT) pp->pp_IOReq.iouh_Flags |= UHFF_NOSHORTPKT;
                         if(pps->pps_Flags & PSFF_NAKTIMEOUT) pp->pp_IOReq.iouh_Flags |= UHFF_NAKTIMEOUT;
                         if(pps->pps_Flags & PSFF_ALLOWRUNT) pp->pp_IOReq.iouh_Flags |= UHFF_ALLOWRUNTPKTS;
@@ -1327,6 +1378,15 @@ AROS_LH3(LONG, psdSetAttrsA,
                 pps->pps_Buffer = NULL;
                 psdFreeVec(pps->pps_Pipes);
                 pps->pps_Pipes = NULL;
+            }
+        } else if (pps->pps_Pipes) {
+            for(cnt = 0; cnt < pps->pps_NumPipes; cnt++) {
+                pp = pps->pps_Pipes[cnt];
+                if (streambase && maxstreams) {
+                    pp->pp_StreamID = (UWORD)(streambase + cnt);
+                } else {
+                    pp->pp_StreamID = 0;
+                }
             }
         }
         ReleaseSemaphore(&pps->pps_AccessLock);
@@ -1663,6 +1723,8 @@ struct PsdEndpoint * pAllocEndpoint(struct PsdInterface *pif)
     if((pep = psdAllocVec(sizeof(struct PsdEndpoint)))) {
         pep->pep_Interface = pif;
         pep->pep_IOReq = NULL;
+        pep->pep_StreamBase = 0;
+        pep->pep_MaxStreams = 0;
         AddTail(&pif->pif_EPs, &pep->pep_Node);
         return(pep);
     }
@@ -3093,6 +3155,37 @@ pBuildDefaultPowerPolicy(struct PsdHardware *phw, struct PsdDevice *pd,
     return policy;
 }
 
+static UWORD
+pGetMaxStreamsForEndpoint(const struct PsdEndpoint *pep)
+{
+    const struct PsdDevice *pd;
+    UBYTE n;
+
+    if (!pep) {
+        return 0;
+    }
+
+    pd = pep->pep_Interface->pif_Config->pc_Device;
+    if (!(pd->pd_Flags & PDFF_SUPERSPEED)) {
+        return 0;
+    }
+
+    if (pep->pep_TransType != USEAF_BULK) {
+        return 0;
+    }
+
+    n = (UBYTE)(pep->pep_CompAttributes & 0x1F);
+    if (n == 0) {
+        return 0;
+    }
+
+    if (n >= 16) {
+        return 0xFFFF;
+    }
+
+    return (UWORD)(1U << n);
+}
+
 /* /// "psdEnumerateDevice()" */
 AROS_LH1(struct PsdDevice *, psdEnumerateDevice,
          AROS_LHA(struct PsdPipe *, pp, A1),
@@ -4200,6 +4293,7 @@ AROS_LH3(struct PsdPipe *, psdAllocPipe,
         pp->pp_Msg.mn_Length = sizeof(struct PsdPipe);
         pp->pp_Device = pd;
         pp->pp_Endpoint = pep;
+        pp->pp_StreamID = 0;
 
         /* Base template IOReq from HW driver */
         pp->pp_IOReq                            = *(pd->pd_Hardware->phw_RootIOReq);
@@ -4213,7 +4307,6 @@ AROS_LH3(struct PsdPipe *, psdAllocPipe,
         pp->pp_IOReq.iouh_SS_MaxBurst           = 0;
         pp->pp_IOReq.iouh_SS_Mult               = 0;
         pp->pp_IOReq.iouh_SS_BytesPerInterval   = 0;
-        pp->pp_IOReq.iouh_MaxStreams            = 0;
         pp->pp_IOReq.iouh_StreamID              = 0;
         pp->pp_IOReq.iouh_PowerPolicy =
             pBuildDefaultPowerPolicy(pd->pd_Hardware, pd, pep);
@@ -4266,15 +4359,6 @@ AROS_LH3(struct PsdPipe *, psdAllocPipe,
                     pp->pp_IOReq.iouh_SS_BytesPerInterval =
                         (UWORD)pep->pep_BytesPerInterval;
 
-                if (pep->pep_TransType == USEAF_BULK) {
-                    UWORD attr = pep->pep_CompAttributes;
-                    UBYTE n    = (UBYTE)(attr & 0x1F);   /* max streams exponent */
-
-                    if (n != 0) {
-                        /* Endpoint can support streams: 2^n streams max */
-                        pp->pp_IOReq.iouh_MaxStreams = (UWORD)(1U << n);
-                    }
-                }
             }
         }
 
@@ -4423,6 +4507,7 @@ AROS_LH3(LONG, psdDoPipe,
 
         pp->pp_IOReq.iouh_Data = data;
         pp->pp_IOReq.iouh_Length = len;
+        pp->pp_IOReq.iouh_StreamID = pp->pp_StreamID;
         if(!pp->pp_Endpoint) {
             pp->pp_IOReq.iouh_SetupData.wLength = AROS_WORD2LE(len);
         }
@@ -4458,6 +4543,7 @@ AROS_LH3(void, psdSendPipe,
 
         pp->pp_IOReq.iouh_Data = data;
         pp->pp_IOReq.iouh_Length = len;
+        pp->pp_IOReq.iouh_StreamID = pp->pp_StreamID;
         if(!pp->pp_Endpoint) {
             pp->pp_IOReq.iouh_SetupData.wLength = AROS_WORD2LE(len);
         }
@@ -8265,6 +8351,7 @@ BOOL pGetDevConfig(struct PsdPipe *pp)
                                 pep->pep_MaxBurst = comp->bMaxBurst + 1;
                                 pep->pep_CompAttributes = comp->bmAttributes;
                                 pep->pep_BytesPerInterval = AROS_LE2WORD(comp->wBytesPerInterval);
+                                pep->pep_MaxStreams = pGetMaxStreamsForEndpoint(pep);
                                 if((pd->pd_Flags & PDFF_SUPERSPEED) && (pep->pep_TransType == USEAF_ISOCHRONOUS)) {
                                     pep->pep_NumTransMuFr = (comp->bmAttributes & 0x03) + 1;
                                 }
@@ -9304,6 +9391,8 @@ static const ULONG PsdEndpointPT[] = {
     PACK_ENTRY(EA_Dummy, EA_MaxBurst, PsdEndpoint, pep_MaxBurst, PKCTRL_UWORD|PKCTRL_UNPACKONLY),
     PACK_ENTRY(EA_Dummy, EA_CompAttributes, PsdEndpoint, pep_CompAttributes, PKCTRL_UWORD|PKCTRL_UNPACKONLY),
     PACK_ENTRY(EA_Dummy, EA_BytesPerInterval, PsdEndpoint, pep_BytesPerInterval, PKCTRL_ULONG|PKCTRL_UNPACKONLY),
+    PACK_ENTRY(EA_Dummy, EA_StreamBase, PsdEndpoint, pep_StreamBase, PKCTRL_UWORD|PKCTRL_PACKUNPACK),
+    PACK_ENTRY(EA_Dummy, EA_MaxStreams, PsdEndpoint, pep_MaxStreams, PKCTRL_UWORD|PKCTRL_UNPACKONLY),
     PACK_ENTRY(EA_Dummy, EA_Interface, PsdEndpoint, pep_Interface, PKCTRL_IPTR|PKCTRL_UNPACKONLY),
     PACK_WORDBIT(EA_Dummy, EA_IsIn, PsdEndpoint, pep_Direction, PKCTRL_BIT|PKCTRL_UNPACKONLY, 1),
     PACK_ENDTABLE
