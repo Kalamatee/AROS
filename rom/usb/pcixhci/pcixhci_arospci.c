@@ -222,6 +222,14 @@ BOOL pciInit(struct PCIDevice *hd)
                     char version_buf[8];
                     char *hardware_name;
 
+                    if (hc->hc_USBVersionMajor != 0) {
+                        usb_maj = hc->hc_USBVersionMajor;
+                        usb_min = hc->hc_USBVersionMinor;
+                        if (usb_min == 0xFF) {
+                            usb_min = -1;
+                        }
+                    }
+
                     driver_len = snprintf(NULL, 0, "%s%u", xhciDriverPrefix,
                                           (hu->hu_UnitNo & ~PCIUSBUNIT_MASK));
                     if (usb_min < 0) {
