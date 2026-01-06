@@ -4,7 +4,6 @@
     Desc: xHCI chipset driver main pciusb interface
 */
 
-#if defined(PCIUSB_ENABLEXHCI)
 #include <aros/debug.h>
 #include <proto/exec.h>
 #include <proto/utility.h>
@@ -4073,4 +4072,3 @@ void xhciFreeDeviceCtx(struct PCIController *hc,
     FreeMem(devCtx, sizeof(struct pciusbXHCIDevice));
 }
 
-#endif /* PCIUSB_ENABLEXHCI */

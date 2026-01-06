@@ -7,7 +7,6 @@
  *----------------------------------------------------------------------------
  *
  */
-#if defined(PCIUSB_ENABLEXHCI)
 #include <exec/types.h>
 #include <hardware/usb/xhci.h>
 #include "pcixhci.h"
