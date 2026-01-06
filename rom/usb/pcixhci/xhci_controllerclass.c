@@ -431,16 +431,14 @@ init_fail:
 OOP_Object *XHCIController__Root__New(OOP_Class *cl, OOP_Object *o, struct pRoot_New *msg)
 {
     struct PCIController *hc = (struct PCIController *)GetTagData(aHidd_DriverData, 0, msg->attrList);
-    OOP_Object *xhciController = (OOP_Object *)OOP_DoSuperMethod(cl, o, (OOP_Msg)msg);
 
-    if (xhciController && hc && !hc->hc_CPrivate) {
+    if (hc && !hc->hc_CPrivate) {
         if (!xhciControllerInit(hc)) {
-            OOP_DisposeObject(xhciController);
             return NULL;
         }
     }
 
-    return xhciController;
+    return (OOP_Object *)OOP_DoSuperMethod(cl, o, (OOP_Msg)msg);
 }
 
 VOID XHCIController__Root__Dispose(OOP_Class *cl, OOP_Object *o, OOP_Msg msg)
