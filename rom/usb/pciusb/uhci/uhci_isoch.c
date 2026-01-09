@@ -33,7 +33,7 @@
 
 static inline void uhciIsoWriteBarrier(void)
 {
-    __asm__ volatile("" ::: "memory");
+    SYNC;
 }
 
 static void uhciInsertIsoPTD(struct PCIController *hc, struct PTDNode *ptd, ULONG slot)
