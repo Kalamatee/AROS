@@ -16,6 +16,7 @@
 #ifdef base
 #undef base
 #endif
+#define base (hc->hc_Device)
 #if defined(AROS_USE_LOGRES)
 #ifdef LogHandle
 #undef LogHandle
