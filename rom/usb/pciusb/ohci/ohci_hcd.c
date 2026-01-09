@@ -29,6 +29,11 @@
 
 #define NewList NEWLIST
 
+static inline struct OhciPTDPrivate *ohciPTDPrivate(struct PTDNode *ptd)
+{
+    return (struct OhciPTDPrivate *)ptd->ptd_Chipset;
+}
+
 #ifdef DEBUG_TD
 
 static void PrintTD(const char *txt, ULONG ptd, struct PCIController *hc)
@@ -1439,14 +1444,6 @@ static AROS_INTH1(ohciIntCode, struct PCIController *, hc)
     return FALSE;
 
     AROS_INTFUNC_EXIT
-}
-
-#undef base
-#define base (hc->hc_Device)
-
-static inline struct OhciPTDPrivate *ohciPTDPrivate(struct PTDNode *ptd)
-{
-    return (struct OhciPTDPrivate *)ptd->ptd_Chipset;
 }
 
 /*
