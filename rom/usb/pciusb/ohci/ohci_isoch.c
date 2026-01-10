@@ -160,6 +160,7 @@ WORD ohciInitIsochIO(struct PCIController *hc, struct RTIsoNode *rtn)
     WRITEMEM32_LE(&oed->oed_HeadPtr, 0);
     WRITEMEM32_LE(&oed->oed_TailPtr, 0);
     oed->oed_FirstTD = NULL;
+    oed->oed_Continue = 0;
     oed->oed_IOReq = &rtn->rtn_IOReq;
 
     rtn->rtn_IOReq.iouh_DriverPrivate1 = oed;
@@ -283,8 +284,7 @@ void ohciStartIsochIO(struct PCIController *hc, struct RTIsoNode *rtn)
     UWORD idx;
     UWORD ptdcount = rtn->rtn_PTDCount;
     struct OhciED *intoed;
-    struct OhciTD *lasttd = NULL;
-    ULONG headphys;
+    struct OhciIsoTD *lasttd = NULL;
 
     pciusbOHCIDebug("OHCI", "%s()\n", __func__);
 
@@ -299,18 +299,14 @@ void ohciStartIsochIO(struct PCIController *hc, struct RTIsoNode *rtn)
     oed->oed_IOReq = ioreq;
     ioreq->iouh_DriverPrivate2 = rtn;
 
-    headphys = READMEM32_LE(&oed->oed_HeadPtr) & OHCI_PTRMASK;
-    if (headphys && headphys != ohcihcp->ohc_OhciTermTD->otd_Self) {
-        struct OhciTD *scan = (struct OhciTD *)((IPTR)headphys - hc->hc_PCIVirtualAdjust - offsetof(struct OhciTD, otd_Ctrl));
-        ULONG nextphys;
+    lasttd = (struct OhciIsoTD *)oed->oed_Continue;
+    if (!lasttd && oed->oed_FirstTD) {
+        struct OhciIsoTD *scan = (struct OhciIsoTD *)oed->oed_FirstTD;
 
-        while(scan) {
-            nextphys = READMEM32_LE(&scan->otd_NextTD) & OHCI_PTRMASK;
-            if(!nextphys || nextphys == ohcihcp->ohc_OhciTermTD->otd_Self)
-                break;
-            scan = (struct OhciTD *)((IPTR)nextphys - hc->hc_PCIVirtualAdjust - offsetof(struct OhciTD, otd_Ctrl));
-        }
+        while (scan->oitd_Succ)
+            scan = scan->oitd_Succ;
         lasttd = scan;
+        oed->oed_Continue = (IPTR)lasttd;
     }
 
     for(idx = 0; idx < ptdcount; idx++) {
@@ -407,14 +403,16 @@ void ohciStartIsochIO(struct PCIController *hc, struct RTIsoNode *rtn)
         SYNC;
 
         if(lasttd) {
-            WRITEMEM32_LE(&lasttd->otd_NextTD, READMEM32_LE(&oitd->oitd_Self));
+            WRITEMEM32_LE(&lasttd->oitd_NextTD, READMEM32_LE(&oitd->oitd_Self));
+            lasttd->oitd_Succ = oitd;
             CacheClearE(lasttd, sizeof(*lasttd), CACRF_ClearD);
         } else {
             WRITEMEM32_LE(&oed->oed_HeadPtr, READMEM32_LE(&oitd->oitd_Self));
             oed->oed_FirstTD = (struct OhciTD *)oitd;
         }
 
-        lasttd = (struct OhciTD *)oitd;
+        lasttd = oitd;
+        oed->oed_Continue = (IPTR)lasttd;
 
         ptd->ptd_Flags |= PTDF_ACTIVE;
     }
@@ -472,7 +470,10 @@ void ohciStopIsochIO(struct PCIController *hc, struct RTIsoNode *rtn)
         struct PTDNode *ptd = rtn->rtn_PTDs[idx];
         if(ptd) {
             struct OhciPTDPrivate *ptdpriv = ohciPTDPrivate(ptd);
+            struct OhciIsoTD *oitd = (struct OhciIsoTD *)ptd->ptd_Descriptor;
             ptd->ptd_Flags &= ~(PTDF_ACTIVE|PTDF_BUFFER_VALID);
+            if(oitd)
+                oitd->oitd_Succ = NULL;
             if(ptdpriv->ptd_BounceBuffer &&
                     ptdpriv->ptd_BounceBuffer != ptdpriv->ptd_BufferReq.ubr_Buffer) {
                 usbReleaseBuffer(ptdpriv->ptd_BounceBuffer, ptdpriv->ptd_BufferReq.ubr_Buffer,
@@ -480,6 +481,15 @@ void ohciStopIsochIO(struct PCIController *hc, struct RTIsoNode *rtn)
                 ptdpriv->ptd_BounceBuffer = NULL;
             }
         }
+    }
+
+    if(oed) {
+        WRITEMEM32_LE(&oed->oed_HeadPtr, 0);
+        WRITEMEM32_LE(&oed->oed_TailPtr, 0);
+        oed->oed_FirstTD = NULL;
+        oed->oed_Continue = 0;
+        CacheClearE(&oed->oed_EPCaps, 16, CACRF_ClearD);
+        SYNC;
     }
 }
 
