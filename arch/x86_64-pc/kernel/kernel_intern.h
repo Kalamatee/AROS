@@ -1,7 +1,7 @@
 #ifndef KERNEL_INTERN_H_
 #define KERNEL_INTERN_H_
 /*
-    Copyright © 1995-2025, The AROS Development Team. All rights reserved.
+    Copyright Â© 1995-2025, The AROS Development Team. All rights reserved.
     $Id$
 
     Desc: 64bit x86 kernel_intern.h
@@ -77,6 +77,7 @@ extern struct KernBootPrivate *__KernBootPrivate;
 void core_Kick(struct TagItem *msg, void *target);
 void kernel_cstart(const struct TagItem *msg);
 void PlatformPostInit(void);
+void core_CPUFreqInit(struct PlatformData *pdata);
 
 /** CPU Related Functions **/
 void core_SetupGDT(struct KernBootPrivate *, apicid_t, APTR, APTR, APTR);

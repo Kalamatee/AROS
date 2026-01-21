@@ -34,6 +34,7 @@ endif
 FILES    += \
              platform_init \
              kernel_cpu \
+             cpufreq \
              kernel_debug \
              kernel_memory \
              kernel_bootmem \

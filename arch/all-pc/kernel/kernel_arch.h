@@ -1,7 +1,19 @@
 #ifndef _KERNEL_ARCH_H_
 #define _KERNEL_ARCH_H_
 /*
-    Copyright © 1995-2025, The AROS Development Team. All rights reserved.
+struct CPUFreqPolicy
+{
+    ULONG               up_threshold;
+    ULONG               down_threshold;
+};
+
+typedef BOOL (*cpufreq_setter_t)(struct PlatformData *, apicid_t, UBYTE);
+
+    struct CPUFreqPolicy kb_CPUFreqPolicy;
+    cpufreq_setter_t    kb_CPUFreqSet;
+#define PLATFORMB_CPUFREQ       3
+#define PLATFORMF_CPUFREQ       (1 << PLATFORMB_CPUFREQ)
+    Copyright Â© 1995-2025, The AROS Development Team. All rights reserved.
     $Id$
 
     Desc: Machine-specific definitions for IBM PC hardware

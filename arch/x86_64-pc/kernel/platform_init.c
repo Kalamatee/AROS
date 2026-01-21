@@ -235,6 +235,8 @@ static int Platform_Init(struct KernelBase *LIBBASE)
 
     LIBBASE->kb_PlatformData = pdata;
 
+    core_CPUFreqInit(pdata);
+
     /*
      * Setup the base syscall handler(s) ...
      */
