@@ -1,0 +1,8 @@
+FROM LIB:c.o "main.o"+"task_page.o"+"memory_page.o"+"misc_page.o"+"globals.o"+"mui.o"+"config.o"+"aloha.o"+"menus.o"+"cat/VMM_Cat.o"
+TO "VMM"
+LIB LIB:scnb.lib LIB:amiga.lib
+SMALLCODE
+SMALLDATA
+STRIPDEBUG
+NOICONS
+
