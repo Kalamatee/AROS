@@ -2,7 +2,16 @@
  *
  *      _close.c - close a file (SAS/C)
  *
- *      Copyright © 1994 AmiTCP/IP Group, 
+#include <libraries/fd.h>
+#include <proto/fd.h>
+  int is_socket;
+  is_socket = (ufb->ufbflg & UFB_SOCK);
+
+  if (!is_socket && FDBase) {
+    FD_Free(fd, FD_OWNER_POSIXC);
+  }
+
+ *      Copyright Â© 1994 AmiTCP/IP Group, 
  *                       Network Solutions Development Inc.
  *                       All rights reserved.
  */

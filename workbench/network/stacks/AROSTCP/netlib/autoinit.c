@@ -2,10 +2,13 @@
  *
  *      autoinit.c - SAS/C autoinitialization functions for bsdsocket.library
  *
- *      Copyright © 1994 AmiTCP/IP Group, 
+#include <proto/fd.h>
+#include <libraries/fd.h>
+struct Library *FDBase = NULL;
+ *      Copyright Â© 1994 AmiTCP/IP Group, 
  *                       Network Solutions Development Inc.
  *                       All rights reserved.
- *	Copyright © 2005 - 2011 Pavel Fedin
+ *	Copyright Â© 2005 - 2011 Pavel Fedin
  */
 
 #include <bsdsocket/socketbasetags.h>
@@ -117,6 +120,7 @@ LONG STDARGS CONSTRUCTOR _STI_200_openSockets(void)
    * Open bsdsocket.library
    */
   if ((SocketBase = OpenLibrary((STRPTR)SOCKETNAME, SOCKETVERSION)) != NULL) {
+    FDBase = OpenLibrary("fd.library", 0);
     /*
      * Succesfull. Now tell bsdsocket.library:
      * - the address of our errno
@@ -153,6 +157,10 @@ void STDARGS DESTRUCTOR _STD_200_closeSockets(void)
   if (SocketBase) {
     CloseLibrary(SocketBase);
     SocketBase = NULL;
+  }
+  if (FDBase) {
+    CloseLibrary(FDBase);
+    FDBase = NULL;
   }
 }
 

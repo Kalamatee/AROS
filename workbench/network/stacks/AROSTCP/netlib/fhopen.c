@@ -2,7 +2,14 @@
  *
  *      fhopen.c - open level 1 file from an AmigaDOS file handle (SAS/C)
  *
- *      Copyright © 1994 AmiTCP/IP Group, 
+#include <libraries/fd.h>
+#include <proto/fd.h>
+
+  ufb = __allocufb(&fd, FD_OWNER_POSIXC);
+      if (FDBase)
+        FD_Free(fd, FD_OWNER_POSIXC);
+    if (FDBase)
+      FD_Free(fd, FD_OWNER_POSIXC);
  *                       Network Solutions Development Inc.
  *                       All rights reserved.
  */

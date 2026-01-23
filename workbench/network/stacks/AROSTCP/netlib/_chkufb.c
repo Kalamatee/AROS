@@ -2,7 +2,18 @@
  *
  *      _chkufb.c - return struct ufb * from a file handle (SAS/C)
  *
- *      Copyright © 1994 AmiTCP/IP Group, 
+#include <libraries/fd.h>
+#include <proto/fd.h>
+  int error;
+    if (FDBase) {
+      error = FD_Free(fd, FD_OWNER_BSDSOCKET);
+      if (error)
+        return error;
+    }
+      ufb = __allocufb(&fd2, FD_OWNER_BSDSOCKET);
+    if (FDBase && FD_Check(fd) != 0)
+      return EBADF;
+
  *                       Network Solutions Development Inc.
  *                       All rights reserved.
  */

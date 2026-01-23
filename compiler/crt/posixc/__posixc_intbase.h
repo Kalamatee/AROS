@@ -32,6 +32,7 @@ struct PosixCIntBase
 
     /* optional libs */
     struct Library           *PosixCUserGroupBase;
+    struct Library           *PosixCFDBase;
 
     /* common */
     APTR internalpool;

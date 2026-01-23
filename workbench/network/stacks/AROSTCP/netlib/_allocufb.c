@@ -2,18 +2,56 @@
  *
  *      _allocufb.c - get a free ufb (SAS/C)
  *
- *      Copyright © 1994 AmiTCP/IP Group, 
- *                       Network Solutions Development Inc.
- *                       All rights reserved.
- */
+#include <libraries/fd.h>
+#include <proto/fd.h>
+__allocufb(int *fdp, fd_owner_t owner)
+  struct UFB *ufb = __ufbs, *last_ufb = NULL;
+  int         check_shared = (owner != FD_OWNER_NONE) && FDBase;
+  LONG        error;
+  while (ufb != NULL) {
+    if (ufb->ufbflg == 0) {
+      if (!check_shared || FD_Check(last_fd) == 0) {
+        if (check_shared) {
+          error = FD_Reserve(last_fd, owner, NULL);
+          if (error == 0) {
+            *fdp = last_fd;
+            return ufb;
+          }
+          if (error != EBUSY) {
+            errno = error;
+            return NULL;
+          }
+        } else {
+          *fdp = last_fd;
+          return ufb;
+        }
+      }
+    }
 
-#include <ios1.h>
-#include <stdlib.h>
-#include <errno.h>
+  for (;;) {
+    ufb->ufbflg = 0;            /* => unused ufb */
 
-/*
- * Allocate new ufb, which is returned as return value. The corresponding fd
- * is returned via fdp.
+    __nufbs++;
+
+    if (!check_shared || FD_Check(last_fd) == 0) {
+      if (check_shared) {
+        error = FD_Reserve(last_fd, owner, NULL);
+        if (error == 0) {
+          *fdp = last_fd;
+          return ufb;
+        }
+        if (error != EBUSY) {
+          errno = error;
+          return NULL;
+        }
+      } else {
+        *fdp = last_fd;
+        return ufb;
+      }
+    }
+
+    last_ufb = ufb;
+    last_fd++;
  */
 struct UFB *
 __allocufb(int *fdp)

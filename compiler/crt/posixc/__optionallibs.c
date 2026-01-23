@@ -37,6 +37,10 @@ int __optionallibs_close(struct PosixCIntBase *PosixCBase)
         CloseLibrary(PosixCBase->PosixCUserGroupBase);
         PosixCBase->PosixCUserGroupBase = NULL;
     }
+    if (PosixCBase->PosixCFDBase) {
+        CloseLibrary(PosixCBase->PosixCFDBase);
+        PosixCBase->PosixCFDBase = NULL;
+    }
 }
 
 static int __close_posixcoptional(struct PosixCIntBase *PosixCBase)
