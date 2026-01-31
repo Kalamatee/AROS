@@ -8,6 +8,7 @@
 #include "debug.h"
 
 #include "cdceth.class.h"
+#include "cdceth_encap.h"
 
 #include <devices/usb_cdc.h>
 
@@ -679,7 +680,7 @@ AROS_UFH0(void, nEthTask)
             if((ncp->ncp_StateFlags & DDF_ONLINE) && (ncp->ncp_ReadPending == NULL))
             {
                 ncp->ncp_ReadPending = ncp->ncp_ReadBuffer[ncp->ncp_ReadBufNum];
-                psdSendPipe(ncp->ncp_EPInPipe, ncp->ncp_ReadPending, ETHER_MAX_LEN);
+                psdSendPipe(ncp->ncp_EPInPipe, ncp->ncp_ReadPending, ncp->ncp_ReadBufSize);
                 ncp->ncp_ReadBufNum ^= 1;
             }
             while((pp = (struct PsdPipe *) GetMsg(ncp->ncp_TaskMsgPort)))
@@ -700,7 +701,7 @@ AROS_UFH0(void, nEthTask)
                         if(ncp->ncp_StateFlags & DDF_ONLINE)
                         {
                             ncp->ncp_ReadPending = ncp->ncp_ReadBuffer[ncp->ncp_ReadBufNum];
-                            psdSendPipe(ncp->ncp_EPInPipe, ncp->ncp_ReadPending, ETHER_MAX_LEN);
+                            psdSendPipe(ncp->ncp_EPInPipe, ncp->ncp_ReadPending, ncp->ncp_ReadBufSize);
                             ncp->ncp_ReadBufNum ^= 1;
                         } else {
                             ncp->ncp_ReadPending = NULL;
@@ -728,7 +729,7 @@ AROS_UFH0(void, nEthTask)
                         } else {
                             KPRINTF(1, ("Pkt %ld received\n", pktlen));
                             DB(dumpmem(pktptr, pktlen));
-                            nReadPacket(ncp, pktptr, pktlen);
+                            cdceth_handle_rx(ncp, pktptr, pktlen);
                         }
                     }
                 }
@@ -1060,16 +1061,21 @@ struct NepClassEth * nAllocEth(void)
                     EA_MaxPktSize, &ncp->ncp_EPOutMaxPktSize,
                     TAG_END);
 
+        cdceth_encap_configure(ncp);
+
         ncp->ncp_ReadPending = NULL;
         ncp->ncp_WritePending = NULL;
-        if(!(ncp->ncp_ReadBuffer[0] = AllocVec(ETHER_MAX_LEN * 4, MEMF_PUBLIC|MEMF_CLEAR)))
         {
-            KPRINTF(1, ("Out of memory for read buffer\n"));
-            break;
+            ULONG bufsize = max(ncp->ncp_ReadBufSize, ncp->ncp_WriteBufSize);
+            if(!(ncp->ncp_ReadBuffer[0] = AllocVec(bufsize * 4, MEMF_PUBLIC|MEMF_CLEAR)))
+            {
+                KPRINTF(1, ("Out of memory for read buffer\n"));
+                break;
+            }
+            ncp->ncp_ReadBuffer[1] = ncp->ncp_ReadBuffer[0] + bufsize;
+            ncp->ncp_WriteBuffer[0] = ncp->ncp_ReadBuffer[1] + bufsize;
+            ncp->ncp_WriteBuffer[1] = ncp->ncp_WriteBuffer[0] + bufsize;
         }
-        ncp->ncp_ReadBuffer[1] = ncp->ncp_ReadBuffer[0] + ETHER_MAX_LEN;
-        ncp->ncp_WriteBuffer[0] = ncp->ncp_ReadBuffer[1] + ETHER_MAX_LEN;
-        ncp->ncp_WriteBuffer[1] = ncp->ncp_WriteBuffer[0] + ETHER_MAX_LEN;
         ncp->ncp_Unit.unit_MsgPort.mp_SigBit = AllocSignal(-1);
         ncp->ncp_Unit.unit_MsgPort.mp_SigTask = thistask;
         ncp->ncp_Unit.unit_MsgPort.mp_Node.ln_Type = NT_MSGPORT;
@@ -1507,7 +1513,7 @@ static void cdceth_complete_write(struct NepClassEth *ncp, LONG ioerr, ULONG act
             if(stats)
             {
                 stats->PacketsSent++;
-                stats->BytesSent += actual ? actual : (ULONG) ioreq->ios2_DataLength;
+                stats->BytesSent += (ULONG) ioreq->ios2_DataLength;
             }
             ncp->ncp_DeviceStats.PacketsSent++;
             ioreq->ios2_Req.io_Error = 0;
@@ -1565,6 +1571,10 @@ BOOL nWritePacket(struct NepClassEth *ncp, struct IOSana2Req *ioreq)
     struct EtherPacketHeader *eph;
     UBYTE *copydest;
     UWORD writelen;
+    ULONG payload_len;
+    ULONG payload_offset = 0;
+    ULONG total_len = 0;
+    ULONG frame_len;
     struct BufMan *bufman;
     UBYTE *buf = ncp->ncp_WriteBuffer[ncp->ncp_WriteBufNum];
 
@@ -1572,26 +1582,40 @@ BOOL nWritePacket(struct NepClassEth *ncp, struct IOSana2Req *ioreq)
     writelen   = ioreq->ios2_DataLength;
     bufman     = ioreq->ios2_BufferManagement;
 
-    eph        = (struct EtherPacketHeader *) buf;
-    copydest   = buf;
+    frame_len = writelen;
+    if(!(ioreq->ios2_Req.io_Flags & SANA2IOF_RAW))
+    {
+        frame_len += sizeof(struct EtherPacketHeader);
+    }
+    payload_len = frame_len < ETHER_MIN_LEN ? ETHER_MIN_LEN : frame_len;
 
-    /* Not a raw packet? */
+    if(!cdceth_prepare_tx(ncp, payload_len, ncp->ncp_WriteBufSize,
+                          &payload_offset, &total_len))
+    {
+        KPRINTF(10, ("writepacket: encapsulation setup failed!\n"));
+
+        /* Trigger any tx, buff or generic error events */
+        nDoEvent(ncp, S2EVENT_ERROR|S2EVENT_TX|S2EVENT_BUFF);
+
+        ioreq->ios2_DataLength   = 0;
+        ioreq->ios2_Req.io_Error = S2ERR_MTU_EXCEEDED;
+        ioreq->ios2_WireError    = S2WERR_GENERIC_ERROR;
+        return FALSE;
+    }
+
+    eph = (struct EtherPacketHeader *) (buf + payload_offset);
+    copydest = buf + payload_offset;
+
     if(!(ioreq->ios2_Req.io_Flags & SANA2IOF_RAW))
     {
         UWORD cnt;
-        KPRINTF(10, ("RAW WRITE!\n"));
-        /* The ethernet header isn't included in the data */
-        /* Build ethernet packet header */
         for(cnt = 0; cnt < ETHER_ADDR_SIZE; cnt++)
         {
             eph->eph_Dest[cnt] = ioreq->ios2_DstAddr[cnt];
             eph->eph_Src[cnt]  = ncp->ncp_MacAddress[cnt];
         }
         eph->eph_Type = AROS_WORD2BE(packettype);
-
-        /* Packet data is at txbuffer */
         copydest += sizeof(struct EtherPacketHeader);
-        writelen += sizeof(struct EtherPacketHeader);
     }
 
     /* Dma not available, fallback to regular copy */
@@ -1611,16 +1635,17 @@ BOOL nWritePacket(struct NepClassEth *ncp, struct IOSana2Req *ioreq)
         return FALSE;
     }
 
-    /* Adjust writelen to legal packet size. */
-    if(writelen < ETHER_MIN_LEN)
+    if(payload_len > frame_len)
     {
-        memset(buf + writelen, 0, ETHER_MIN_LEN - writelen);
-        writelen = ETHER_MIN_LEN;
+        memset(buf + payload_offset + frame_len, 0, payload_len - frame_len);
     }
-    KPRINTF(20, ("PktOut[%ld] %ld\n", ncp->ncp_WriteBufNum, writelen));
+
+    cdceth_finalize_tx(ncp, buf, payload_offset, payload_len, total_len);
+
+    KPRINTF(20, ("PktOut[%ld] %ld\n", ncp->ncp_WriteBufNum, (long) payload_len));
 
     /* Track the padded length so completion can account for bytes sent. */
-    ioreq->ios2_DataLength = writelen;
+    ioreq->ios2_DataLength = payload_len;
     ncp->ncp_WritePending = ioreq;
 
     /*
@@ -1629,7 +1654,7 @@ BOOL nWritePacket(struct NepClassEth *ncp, struct IOSana2Req *ioreq)
      * completions.  If the pipe is already halted, the pending request will be
      * completed with the error when the pipe callback reports it.
      */
-    psdSendPipe(ncp->ncp_EPOutPipe, buf, (ULONG) writelen);
+    psdSendPipe(ncp->ncp_EPOutPipe, buf, (ULONG) total_len);
 
     ncp->ncp_WriteBufNum ^= 1;
 
