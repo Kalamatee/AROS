@@ -2,7 +2,7 @@
  *
  *      _allocufb.c - get a free ufb (SAS/C)
  *
- *      Copyright © 1994 AmiTCP/IP Group, 
+ *      Copyright Â© 1994 AmiTCP/IP Group, 
  *                       Network Solutions Development Inc.
  *                       All rights reserved.
  */
@@ -22,7 +22,7 @@ __allocufb(int *fdp, fd_owner_t owner)
 {
   struct UFB *ufb = __ufbs, *last_ufb = NULL;
   int         last_fd = 0;
-  int         check_shared = (owner != FD_OWNER_NONE) && FDBase;
+  int         check_shared = (owner != FD_TYPE_NONE) && FDBase;
   LONG        error;
 
   /*
@@ -34,6 +34,12 @@ __allocufb(int *fdp, fd_owner_t owner)
         if (check_shared) {
           error = FD_Reserve(last_fd, owner, NULL);
           if (error == 0) {
+            error = FD_SetData(last_fd, owner, ufb);
+            if (error) {
+              FD_Free(last_fd, owner);
+              errno = error;
+              return NULL;
+            }
             *fdp = last_fd;
             return ufb;
           }
@@ -74,6 +80,12 @@ __allocufb(int *fdp, fd_owner_t owner)
       if (check_shared) {
         error = FD_Reserve(last_fd, owner, NULL);
         if (error == 0) {
+          error = FD_SetData(last_fd, owner, ufb);
+          if (error) {
+            FD_Free(last_fd, owner);
+            errno = error;
+            return NULL;
+          }
           *fdp = last_fd;
           return ufb;
         }

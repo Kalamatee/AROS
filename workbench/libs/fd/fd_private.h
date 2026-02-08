@@ -20,6 +20,8 @@ struct fd_base {
     struct SignalSemaphore fd_Lock;
     fd_entry *fd_Table;
     ULONG fd_Slots;
+    struct fd_hooks *fd_Hooks;
+    fd_type_t fd_Types;
 };
 
 #endif /* FD_PRIVATE_H */

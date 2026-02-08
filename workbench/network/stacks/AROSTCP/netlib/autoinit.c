@@ -2,10 +2,10 @@
  *
  *      autoinit.c - SAS/C autoinitialization functions for bsdsocket.library
  *
- *      Copyright © 1994 AmiTCP/IP Group, 
+ *      Copyright Â© 1994 AmiTCP/IP Group, 
  *                       Network Solutions Development Inc.
  *                       All rights reserved.
- *	Copyright © 2005 - 2011 Pavel Fedin
+ *	Copyright Â© 2005 - 2011 Pavel Fedin
  */
 
 #include <bsdsocket/socketbasetags.h>
@@ -25,6 +25,68 @@
 
 struct Library *SocketBase = NULL;
 struct Library *FDBase = NULL;
+fd_type_t NetlibFDType = FD_TYPE_NONE;
+
+extern int __close(int fd);
+extern int __read(int fd, void *buffer, unsigned int length);
+extern int __write(int fd, const void *buffer, unsigned int length);
+extern int ioctl(int fd, unsigned int request, char *argp);
+
+static LONG __netlib_fd_close(LONG fd, APTR data)
+{
+  (void)data;
+  if (__close(fd) < 0)
+    return errno;
+  return 0;
+}
+
+static LONG __netlib_fd_read(LONG fd, APTR data, void *buffer, ULONG length, ULONG *out_count)
+{
+  int result;
+
+  (void)data;
+  if (!out_count)
+    return EINVAL;
+
+  result = __read(fd, buffer, (unsigned int)length);
+  if (result < 0)
+    return errno;
+
+  *out_count = (ULONG)result;
+  return 0;
+}
+
+static LONG __netlib_fd_write(LONG fd, APTR data, const void *buffer, ULONG length, ULONG *out_count)
+{
+  int result;
+
+  (void)data;
+  if (!out_count)
+    return EINVAL;
+
+  result = __write(fd, buffer, (unsigned int)length);
+  if (result < 0)
+    return errno;
+
+  *out_count = (ULONG)result;
+  return 0;
+}
+
+static LONG __netlib_fd_ioctl(LONG fd, APTR data, ULONG request, APTR arg, LONG *out_result)
+{
+  int result;
+
+  (void)data;
+  if (!out_result)
+    return EINVAL;
+
+  result = ioctl(fd, request, (char *)arg);
+  if (result != 0)
+    return errno ? errno : result;
+
+  *out_result = result;
+  return 0;
+}
 
 static const char SOCKETNAME[] = "bsdsocket.library";
 
@@ -121,6 +183,17 @@ LONG STDARGS CONSTRUCTOR _STI_200_openSockets(void)
    */
   if ((SocketBase = OpenLibrary((STRPTR)SOCKETNAME, SOCKETVERSION)) != NULL) {
     FDBase = OpenLibrary("fd.library", 0);
+    if (FDBase) {
+      struct fd_hooks hooks = {
+        .fd_close = __netlib_fd_close,
+        .fd_read = __netlib_fd_read,
+        .fd_write = __netlib_fd_write,
+        .fd_ioctl = __netlib_fd_ioctl,
+      };
+
+      if (FD_RegisterType(&hooks, &NetlibFDType) != 0)
+        NetlibFDType = FD_TYPE_NONE;
+    }
     /*
      * Succesfull. Now tell bsdsocket.library:
      * - the address of our errno
@@ -162,6 +235,7 @@ void STDARGS DESTRUCTOR _STD_200_closeSockets(void)
     CloseLibrary(FDBase);
     FDBase = NULL;
   }
+  NetlibFDType = FD_TYPE_NONE;
 }
 
 #ifdef __AROS__

@@ -32,10 +32,53 @@
 #endif
 #define errno (*(&((struct PosixCBase *)PosixCBase)->StdCBase->_errno))
 
+static LONG __posixc_fd_close_hook(LONG fd, APTR data)
+{
+    (void)data;
+    return __posixc_close(fd);
+}
+
+static LONG __posixc_fd_read_hook(LONG fd, APTR data, void *buffer, ULONG length, ULONG *out_count)
+{
+    (void)data;
+    return __posixc_read(fd, buffer, length, out_count);
+}
+
+static LONG __posixc_fd_write_hook(LONG fd, APTR data, const void *buffer, ULONG length, ULONG *out_count)
+{
+    (void)data;
+    return __posixc_write(fd, buffer, length, out_count);
+}
+
+static LONG __posixc_fd_ioctl_hook(LONG fd, APTR data, ULONG request, APTR arg, LONG *out_result)
+{
+    (void)data;
+    return __posixc_ioctl(fd, request, arg, out_result);
+}
+
 static int __fdlib_available(struct PosixCIntBase *PosixCBase)
 {
     if (PosixCBase->PosixCFDBase == NULL)
         PosixCBase->PosixCFDBase = OpenLibrary("fd.library", 0);
+
+    if (PosixCBase->PosixCFDBase && PosixCBase->posixc_fd_type == FD_TYPE_NONE) {
+        struct Library *FDBase = PosixCBase->PosixCFDBase;
+        struct fd_hooks hooks = {
+            .fd_close = NULL,
+            .fd_read = NULL,
+            .fd_write = NULL,
+            .fd_ioctl = NULL,
+        };
+        fd_type_t type = FD_TYPE_NONE;
+
+        hooks.fd_close = __posixc_fd_close_hook;
+        hooks.fd_read = __posixc_fd_read_hook;
+        hooks.fd_write = __posixc_fd_write_hook;
+        hooks.fd_ioctl = __posixc_fd_ioctl_hook;
+
+        if (FD_RegisterType(&hooks, &type) == 0)
+            PosixCBase->posixc_fd_type = type;
+    }
 
     return PosixCBase->PosixCFDBase != NULL;
 }
@@ -90,6 +133,29 @@ int __getfdslots(void)
     return PosixCBase->fd_slots;
 }
 
+fd_type_t __posixc_get_fd_type(void)
+{
+    struct PosixCIntBase *PosixCBase =
+        (struct PosixCIntBase *)__aros_getbase_PosixCBase();
+
+    if (!__fdlib_available(PosixCBase))
+        return FD_TYPE_NONE;
+
+    return PosixCBase->posixc_fd_type;
+}
+
+fd_type_t __posixc_get_owner(int fd)
+{
+    struct PosixCIntBase *PosixCBase =
+        (struct PosixCIntBase *)__aros_getbase_PosixCBase();
+
+    if (!__fdlib_available(PosixCBase))
+        return FD_TYPE_NONE;
+
+    struct Library *FDBase = PosixCBase->PosixCFDBase;
+    return FD_GetOwner(fd);
+}
+
 fdesc *__getfdesc(register int fd)
 {
     struct PosixCIntBase *PosixCBase =
@@ -108,10 +174,13 @@ void __setfdesc(register int fd, fdesc *desc)
 
     if (__fdlib_available(PosixCBase)) {
         struct Library *FDBase = PosixCBase->PosixCFDBase;
-        if (desc)
-            FD_SetData(fd, FD_OWNER_POSIXC, desc);
-        else
-            FD_Free(fd, FD_OWNER_POSIXC);
+        fd_type_t type = PosixCBase->posixc_fd_type;
+        if (type != FD_TYPE_NONE) {
+            if (desc)
+                FD_SetData(fd, type, desc);
+            else
+                FD_Free(fd, type);
+        }
     }
 }
 
@@ -179,10 +248,12 @@ int __getfdslot(int wanted_fd)
 
     if (__fdlib_available(PosixCBase)) {
         struct Library *FDBase = PosixCBase->PosixCFDBase;
-        error = FD_Reserve(wanted_fd, FD_OWNER_POSIXC, NULL);
-        if (error) {
-            __set_errno(PosixCBase, error);
-            return -1;
+        if (PosixCBase->posixc_fd_type != FD_TYPE_NONE) {
+            error = FD_Reserve(wanted_fd, PosixCBase->posixc_fd_type, NULL);
+            if (error) {
+                __set_errno(PosixCBase, error);
+                return -1;
+            }
         }
     }
 

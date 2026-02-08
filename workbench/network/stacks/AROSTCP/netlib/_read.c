@@ -2,7 +2,7 @@
  *
  *      _read.c - read() for both files and sockets (SAS/C)
  *
- *      Copyright © 1994 AmiTCP/IP Group, 
+ *      Copyright Â© 1994 AmiTCP/IP Group, 
  *                       Network Solutions Development Inc.
  *                       All rights reserved.
  */
@@ -16,8 +16,12 @@
 #include <proto/dos.h>
 
 #include <bsdsocket.h>
+#include <libraries/fd.h>
+#include <proto/fd.h>
 
 extern int __io2errno(long);
+extern struct Library *FDBase;
+extern fd_type_t NetlibFDType;
 
 int
 __read(int fd, void *buffer, unsigned int length)
@@ -25,11 +29,25 @@ __read(int fd, void *buffer, unsigned int length)
   struct UFB *ufb;
   int         count;
   char        ch, *ptr, *nextptr, *endptr;
+  fd_type_t   owner;
 
   /*
    * Check for the break signals
    */
   __chkabort();
+  if (FDBase && NetlibFDType != FD_TYPE_NONE) {
+    owner = FD_GetOwner(fd);
+    if (owner != FD_TYPE_NONE && owner != NetlibFDType) {
+      ULONG out_count = 0;
+      LONG error = FD_Read(fd, buffer, length, &out_count);
+      if (error) {
+        errno = error;
+        return -1;
+      }
+      return (int)out_count;
+    }
+  }
+
   /*
    * find the ufb *
    */

@@ -14,6 +14,9 @@
 #include <errno.h>
 
 #include "__fdesc.h"
+#include "__posixc_intbase.h"
+#include <libraries/fd.h>
+#include <proto/fd.h>
 
 static int send_action_packet(struct MsgPort *port, BPTR arg)
 {
@@ -165,41 +168,75 @@ static int fill_consize(APTR fd, struct winsize *ws)
 ******************************************************************************/
 {
     va_list args;
+    APTR arg = NULL;
+    LONG result = 0;
+    LONG error;
+    fd_type_t owner = __posixc_get_owner(fd);
+    fd_type_t posixc_type = __posixc_get_fd_type();
+
+    va_start(args, request);
+    arg = va_arg(args, APTR);
+    va_end(args);
+
+    if (posixc_type != FD_TYPE_NONE && owner != FD_TYPE_NONE && owner != posixc_type) {
+        struct Library *FDBase = NULL;
+        struct PosixCIntBase *PosixCBase =
+            (struct PosixCIntBase *)__aros_getbase_PosixCBase();
+
+        FDBase = PosixCBase->PosixCFDBase;
+        error = FD_Ioctl(fd, request, arg, &result);
+        if (error) {
+            errno = error;
+            return error;
+        }
+        return result;
+    }
+
+    error = __posixc_ioctl(fd, request, arg, &result);
+
+    if (error) {
+        if (request != TIOCGWINSZ)
+            errno = ENOSYS;
+        else
+            errno = error;
+        return error;
+    }
+
+    return result;
+}
+
+LONG __posixc_ioctl(int fd, ULONG request, APTR arg, LONG *out_result)
+{
     struct winsize *ws;
     fdesc *desc;
 
-    if(request != TIOCGWINSZ)
+    if (!out_result)
+        return EINVAL;
+
+    if (request != TIOCGWINSZ)
     {
         /* FIXME: Implement missing ioctl() parameters */
         AROS_FUNCTION_NOT_IMPLEMENTED("posixc");
-        errno = ENOSYS;
         return EFAULT;
     }
 
-    switch(fd)
+    switch (fd)
     {
-        case STDIN_FILENO:  desc=BADDR(Input());
+        case STDIN_FILENO:  desc = BADDR(Input());
            break;
-        case STDOUT_FILENO: desc=BADDR(Output());
+        case STDOUT_FILENO: desc = BADDR(Output());
            break;
         default:
-           desc=__getfdesc(fd); /* FIXME: is this correct? why does it not work for STDOUT/STDIN? */
+           desc = __getfdesc(fd); /* FIXME: is this correct? why does it not work for STDOUT/STDIN? */
     }
 
-    if(!desc || !IsInteractive(desc))
-    {
+    if (!desc || !IsInteractive(desc))
         return EBADF;
-    }
 
-    va_start(args, request);
-    ws=(struct winsize *) va_arg(args, struct winsize *);
-    va_end(args);
-
-    if(!ws || !fill_consize(desc, ws))
-    {
+    ws = (struct winsize *)arg;
+    if (!ws || !fill_consize(desc, ws))
         return EFAULT;
-    }
 
+    *out_result = 0;
     return 0;
 }
-

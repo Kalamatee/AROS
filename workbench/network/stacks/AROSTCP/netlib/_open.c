@@ -2,7 +2,7 @@
  *
  *      _open.c - Unix compatible open() (SAS/C)
  *
- *      Copyright © 1994 AmiTCP/IP Group, 
+ *      Copyright Â© 1994 AmiTCP/IP Group, 
  *                       Network Solutions Development Inc.
  *                       All rights reserved.
  */
@@ -27,6 +27,7 @@
 #include "netlib.h"
 
 extern int (*__closefunc)(int);
+extern fd_type_t NetlibFDType;
 
 __stdargs int
 __open(const char *name, int mode, ...)
@@ -50,7 +51,7 @@ __open(const char *name, int mode, ...)
   /*
    * find first free ufb
    */
-  ufb = __allocufb(&fd, FD_OWNER_POSIXC);
+  ufb = __allocufb(&fd, NetlibFDType);
   if (ufb == NULL)
     return -1; /* errno is set by the __allocufb() */
 
@@ -60,8 +61,8 @@ __open(const char *name, int mode, ...)
   if ((ufb->ufbfn = malloc(strlen(name)+1)) == NULL) {
     SET_OSERR(ERROR_NO_FREE_STORE);
     errno = ENOMEM;
-    if (FDBase)
-      FD_Free(fd, FD_OWNER_POSIXC);
+    if (FDBase && NetlibFDType != FD_TYPE_NONE)
+      FD_Free(fd, NetlibFDType);
     return -1;
   }
   strcpy(ufb->ufbfn, name);
@@ -74,8 +75,8 @@ __open(const char *name, int mode, ...)
       errno = EINVAL;
       free(ufb->ufbfn);
       ufb->ufbfn = NULL;
-      if (FDBase)
-        FD_Free(fd, FD_OWNER_POSIXC);
+      if (FDBase && NetlibFDType != FD_TYPE_NONE)
+        FD_Free(fd, NetlibFDType);
       return -1;
     }
     flags = UFB_RA;
@@ -90,8 +91,8 @@ __open(const char *name, int mode, ...)
     errno = EINVAL;
     free(ufb->ufbfn);
     ufb->ufbfn = NULL;
-    if (FDBase)
-      FD_Free(fd, FD_OWNER_POSIXC);
+    if (FDBase && NetlibFDType != FD_TYPE_NONE)
+      FD_Free(fd, NetlibFDType);
     return -1;
   }
   if (mode & O_APPEND)
@@ -108,8 +109,8 @@ __open(const char *name, int mode, ...)
 	errno = EEXIST;
 	free(ufb->ufbfn);
 	ufb->ufbfn = NULL;
-	if (FDBase)
-	  FD_Free(fd, FD_OWNER_POSIXC);
+	if (FDBase && NetlibFDType != FD_TYPE_NONE)
+	  FD_Free(fd, NetlibFDType);
 	return -1;
       }
 
@@ -158,7 +159,8 @@ osfail:
     if (ufb->ufbfn)
       free(ufb->ufbfn);
     if (FDBase)
-      FD_Free(fd, FD_OWNER_POSIXC);
+      if (NetlibFDType != FD_TYPE_NONE)
+        FD_Free(fd, NetlibFDType);
     set_errno(code);
   }
   return -1;

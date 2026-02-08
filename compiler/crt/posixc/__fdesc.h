@@ -2,7 +2,7 @@
 #define ___FDESC_H
 
 /*
-    Copyright © 1995-2020, The AROS Development Team. All rights reserved.
+    Copyright Â© 1995-2020, The AROS Development Team. All rights reserved.
     $Id$
 
     Desc: file descriptors handling internals - header file
@@ -10,6 +10,8 @@
 */
 
 #include <dos/dos.h>
+#include <stddef.h>
+#include <libraries/fd.h>
 
 /* file control block - one per file handle */
 typedef struct _fcb
@@ -58,5 +60,11 @@ LONG __oflags2amode(int flags);
 fdesc *__alloc_fdesc(void);
 void __free_fdesc(fdesc *fdesc);
 void __close_on_exec_fdescs(void);
+fd_type_t __posixc_get_fd_type(void);
+fd_type_t __posixc_get_owner(int fd);
+LONG __posixc_read(int fd, void *buf, size_t count, ULONG *out_count);
+LONG __posixc_write(int fd, const void *buf, size_t count, ULONG *out_count);
+LONG __posixc_close(int fd);
+LONG __posixc_ioctl(int fd, ULONG request, APTR arg, LONG *out_result);
 
 #endif /* ___FDESC_H */

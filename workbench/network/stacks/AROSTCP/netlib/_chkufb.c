@@ -2,7 +2,7 @@
  *
  *      _chkufb.c - return struct ufb * from a file handle (SAS/C)
  *
- *      Copyright © 1994 AmiTCP/IP Group, 
+ *      Copyright Â© 1994 AmiTCP/IP Group, 
  *                       Network Solutions Development Inc.
  *                       All rights reserved.
  */
@@ -19,6 +19,7 @@
 
 extern unsigned long __fmask;
 extern int (*__closefunc)(int);
+extern fd_type_t NetlibFDType;
 
 long ASM fdCallback(REG(d0) int fd, REG(d1) int action);
 
@@ -76,8 +77,8 @@ fdCallback(REG(d0) int fd, REG(d1) int action)
     }
 
     ufb->ufbflg = 0;
-    if (FDBase) {
-      error = FD_Free(fd, FD_OWNER_BSDSOCKET);
+    if (FDBase && NetlibFDType != FD_TYPE_NONE) {
+      error = FD_Free(fd, NetlibFDType);
       if (error)
         return error;
     }
@@ -85,7 +86,7 @@ fdCallback(REG(d0) int fd, REG(d1) int action)
 
   case FDCB_ALLOC:
     do {
-      ufb = __allocufb(&fd2, FD_OWNER_BSDSOCKET);
+      ufb = __allocufb(&fd2, NetlibFDType);
       if (ufb == NULL)
 	return ENOMEM;
 #ifdef DEBUG

@@ -10,6 +10,9 @@
 #include <proto/exec.h>
 #include <proto/dos.h>
 #include "__fdesc.h"
+#include "__posixc_intbase.h"
+#include <libraries/fd.h>
+#include <proto/fd.h>
 
 /*****************************************************************************
 
@@ -48,26 +51,52 @@
 
 ******************************************************************************/
 {
-    ssize_t cnt;
-    fdesc *fdesc = __getfdesc(fd);
+    ULONG out_count = 0;
+    fd_type_t owner = __posixc_get_owner(fd);
+    fd_type_t posixc_type = __posixc_get_fd_type();
+    LONG error;
 
-    if (!fdesc)
-    {
-        errno = EBADF;
+    if (posixc_type != FD_TYPE_NONE && owner != FD_TYPE_NONE && owner != posixc_type) {
+        struct Library *FDBase = NULL;
+        struct PosixCIntBase *PosixCBase =
+            (struct PosixCIntBase *)__aros_getbase_PosixCBase();
+
+        FDBase = PosixCBase->PosixCFDBase;
+        error = FD_Read(fd, buf, count, &out_count);
+        if (error) {
+            errno = error;
+            return -1;
+        }
+        return (ssize_t)out_count;
+    }
+
+    error = __posixc_read(fd, buf, count, &out_count);
+    if (error) {
+        errno = error;
         return -1;
     }
 
-    if(fdesc->fcb->privflags & _FCB_ISDIR)
-    {
-        errno = EISDIR;
-        return -1;
-    }
-
-    cnt = Read (fdesc->fcb->handle, buf, count);
-
-    if (cnt == -1)
-        errno = __stdc_ioerr2errno (IoErr ());
-
-    return cnt;
+    return (ssize_t)out_count;
 } /* read */
 
+LONG __posixc_read(int fd, void *buf, size_t count, ULONG *out_count)
+{
+    fdesc *fdesc = __getfdesc(fd);
+    ssize_t cnt;
+
+    if (!out_count)
+        return EINVAL;
+
+    if (!fdesc)
+        return EBADF;
+
+    if (fdesc->fcb->privflags & _FCB_ISDIR)
+        return EISDIR;
+
+    cnt = Read(fdesc->fcb->handle, buf, count);
+    if (cnt == -1)
+        return __stdc_ioerr2errno(IoErr());
+
+    *out_count = (ULONG)cnt;
+    return 0;
+}

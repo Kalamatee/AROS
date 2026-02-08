@@ -2,7 +2,7 @@
  *
  *      fhopen.c - open level 1 file from an AmigaDOS file handle (SAS/C)
  *
- *      Copyright © 1994 AmiTCP/IP Group, 
+ *      Copyright Â© 1994 AmiTCP/IP Group, 
  *                       Network Solutions Development Inc.
  *                       All rights reserved.
  */
@@ -22,6 +22,7 @@
 #include <bsdsocket.h>
 
 extern int (*__closefunc)(int);
+extern fd_type_t NetlibFDType;
 
 int
 fhopen(long file, int mode)
@@ -41,7 +42,7 @@ fhopen(long file, int mode)
   /*
    * find first free ufb
    */
-  ufb = __allocufb(&fd, FD_OWNER_POSIXC);
+  ufb = __allocufb(&fd, NetlibFDType);
   if (ufb == NULL)
     return -1; /* errno is set by the __allocufb() */
 
@@ -52,8 +53,8 @@ fhopen(long file, int mode)
   case O_RDONLY:
     if (mode & (O_APPEND | O_CREAT | O_TRUNC | O_EXCL)) {
       errno = EINVAL;
-      if (FDBase)
-        FD_Free(fd, FD_OWNER_POSIXC);
+      if (FDBase && NetlibFDType != FD_TYPE_NONE)
+        FD_Free(fd, NetlibFDType);
       return -1;
     }
     flags = UFB_RA;
@@ -66,8 +67,8 @@ fhopen(long file, int mode)
     break;
   default:
     errno = EINVAL;
-    if (FDBase)
-      FD_Free(fd, FD_OWNER_POSIXC);
+    if (FDBase && NetlibFDType != FD_TYPE_NONE)
+      FD_Free(fd, NetlibFDType);
     return -1;
   }
   if (mode & O_APPEND)

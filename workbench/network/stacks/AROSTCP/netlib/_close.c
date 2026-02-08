@@ -2,7 +2,7 @@
  *
  *      _close.c - close a file (SAS/C)
  *
- *      Copyright © 1994 AmiTCP/IP Group, 
+ *      Copyright Â© 1994 AmiTCP/IP Group, 
  *                       Network Solutions Development Inc.
  *                       All rights reserved.
  */
@@ -17,11 +17,27 @@
 #include <libraries/fd.h>
 #include <proto/fd.h>
 
+extern fd_type_t NetlibFDType;
+extern struct Library *FDBase;
+
 int 
 __close(int fd)
 {
   struct UFB *ufb;
   int is_socket;
+  fd_type_t owner;
+
+  if (FDBase && NetlibFDType != FD_TYPE_NONE) {
+    owner = FD_GetOwner(fd);
+    if (owner != FD_TYPE_NONE && owner != NetlibFDType) {
+      LONG error = FD_Close(fd);
+      if (error) {
+        errno = error;
+        return -1;
+      }
+      return 0;
+    }
+  }
 
   /*
    * Check for the break signals
@@ -80,8 +96,8 @@ __close(int fd)
   ufb->ufbflg = 0;
   ufb->ufbfh = NULL; /* just in case */
 
-  if (!is_socket && FDBase) {
-    FD_Free(fd, FD_OWNER_POSIXC);
+  if (!is_socket && FDBase && NetlibFDType != FD_TYPE_NONE) {
+    FD_Free(fd, NetlibFDType);
   }
 
   /* 
@@ -91,4 +107,3 @@ __close(int fd)
   
   return 0;
 }
-

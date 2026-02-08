@@ -10,6 +10,9 @@
 #include <proto/exec.h>
 #include <proto/dos.h>
 #include "__fdesc.h"
+#include "__posixc_intbase.h"
+#include <libraries/fd.h>
+#include <proto/fd.h>
 
 /*****************************************************************************
 
@@ -46,20 +49,49 @@
 
 ******************************************************************************/
 {
-    ssize_t cnt;
+    ULONG out_count = 0;
+    fd_type_t owner = __posixc_get_owner(fd);
+    fd_type_t posixc_type = __posixc_get_fd_type();
+    LONG error;
 
-    fdesc *fdesc = __getfdesc(fd);
-    if (!fdesc)
-    {
-        errno = EBADF;
+    if (posixc_type != FD_TYPE_NONE && owner != FD_TYPE_NONE && owner != posixc_type) {
+        struct Library *FDBase = NULL;
+        struct PosixCIntBase *PosixCBase =
+            (struct PosixCIntBase *)__aros_getbase_PosixCBase();
+
+        FDBase = PosixCBase->PosixCFDBase;
+        error = FD_Write(fd, buf, count, &out_count);
+        if (error) {
+            errno = error;
+            return -1;
+        }
+        return (ssize_t)out_count;
+    }
+
+    error = __posixc_write(fd, buf, count, &out_count);
+    if (error) {
+        errno = error;
         return -1;
     }
 
-    cnt = Write (fdesc->fcb->handle, (void *)buf, count);
-
-    if (cnt == -1)
-        errno = __stdc_ioerr2errno (IoErr ());
-
-    return cnt;
+    return (ssize_t)out_count;
 } /* write */
 
+LONG __posixc_write(int fd, const void *buf, size_t count, ULONG *out_count)
+{
+    fdesc *fdesc = __getfdesc(fd);
+    ssize_t cnt;
+
+    if (!out_count)
+        return EINVAL;
+
+    if (!fdesc)
+        return EBADF;
+
+    cnt = Write(fdesc->fcb->handle, (void *)buf, count);
+    if (cnt == -1)
+        return __stdc_ioerr2errno(IoErr());
+
+    *out_count = (ULONG)cnt;
+    return 0;
+}

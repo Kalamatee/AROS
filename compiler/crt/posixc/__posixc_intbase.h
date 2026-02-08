@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <pwd.h>
+#include <libraries/fd.h>
 
 /* Some private structs */
 struct __random_state;
@@ -33,6 +34,7 @@ struct PosixCIntBase
     /* optional libs */
     struct Library           *PosixCUserGroupBase;
     struct Library           *PosixCFDBase;
+    fd_type_t                posixc_fd_type;
 
     /* common */
     APTR internalpool;

@@ -13,6 +13,8 @@ static int FD_Init(LIBBASETYPEPTR LIBBASE)
     InitSemaphore(&LIBBASE->fd_Lock);
     LIBBASE->fd_Table = NULL;
     LIBBASE->fd_Slots = 0;
+    LIBBASE->fd_Hooks = NULL;
+    LIBBASE->fd_Types = 0;
 
     return TRUE;
 }
@@ -21,9 +23,13 @@ static int FD_Expunge(LIBBASETYPEPTR LIBBASE)
 {
     if (LIBBASE->fd_Table)
         FreeVec(LIBBASE->fd_Table);
+    if (LIBBASE->fd_Hooks)
+        FreeVec(LIBBASE->fd_Hooks);
 
     LIBBASE->fd_Table = NULL;
     LIBBASE->fd_Slots = 0;
+    LIBBASE->fd_Hooks = NULL;
+    LIBBASE->fd_Types = 0;
 
     return TRUE;
 }
